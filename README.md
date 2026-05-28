@@ -52,6 +52,7 @@ La plantilla se organiza para separar reglas compartidas, agentes especializados
 │   └── opencode.json
 ├── docs/
 │   └── ...
+├── install.sh
 └── README.md
 ```
 
@@ -64,10 +65,36 @@ La plantilla se organiza para separar reglas compartidas, agentes especializados
 - `project-template/opencode.json`: concentra la configuración local del proyecto, incluyendo ajustes operativos como el modelo por defecto.
 - `docs/`: reservado para documentación más detallada, como guías de instalación, arquitectura, personalización o mantenimiento.
 - `README.md`: actúa como punto de entrada de la plantilla y resume propósito, estructura, instalación y enlaces a documentación complementaria.
+- `install.sh`: script de instalación guiada de la plantilla.
 ## Instalación
 La plantilla está pensada para usarse en dos niveles: una capa global compartida entre proyectos y una capa local dentro de cada repositorio. Esta separación permite mantener reglas reutilizables en un solo lugar y adaptar cada proyecto sin duplicar configuración innecesaria. 
 ### Orden recomendado
 Para obtener el comportamiento esperado de la plantilla, instala primero la capa global y después la capa local del proyecto. Así, las reglas compartidas sirven como base y las instrucciones del repositorio actúan como extensión especializada.
+
+### Instalación rápida y dirigida (Recomendada)
+Si estás en Linux, puedes utilizar el script de instalación automatizado `install.sh` incluido en la raíz de este repositorio. Este script permite instalar el CLI de OpenCode, desplegar la configuración global y preparar la plantilla local en el proyecto seleccionado de forma guiada e interactiva (creando copias de seguridad de configuraciones previas de manera automática).
+
+1. Otorga permisos de ejecución al script:
+   ```bash
+   chmod +x install.sh
+   ```
+2. Ejecuta el script:
+   ```bash
+   ./install.sh
+   ```
+3. Selecciona la opción deseada del menú interactivo (por ejemplo, la opción **4** para realizar una instalación completa).
+
+También puedes ejecutarlo de manera no interactiva usando flags:
+- `./install.sh --cli` (Solo instala/actualiza el CLI de OpenCode)
+- `./install.sh --global` (Solo copia la configuración global a `~/.config/opencode/`)
+- `./install.sh --project [ruta]` (Inicializa la plantilla local del proyecto en la ruta especificada)
+- `./install.sh --all` (Realiza la instalación completa y configura el proyecto en el directorio actual)
+
+---
+
+### Instalación manual
+Si prefieres configurar las capas paso a paso, sigue las instrucciones que se detallan a continuación.
+
 ### Instalación global
 Usa esta instalación si quieres definir una base común para todas tus sesiones de OpenCode. La configuración global es el lugar adecuado para reglas generales, agentes reutilizables y comandos compartidos entre proyectos.
 
