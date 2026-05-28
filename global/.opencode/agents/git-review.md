@@ -1,26 +1,30 @@
 ---
 description: Revisa cambios en Git, analiza diffs, detecta riesgos y propone mensajes de commit usando Conventional Commits.
+
 mode: subagent
+
 temperature: 0.1
-max_steps: 8
+
+steps: 8
+
 permission:
-  read: allow
-  edit: deny
-  glob: allow
-  grep: allow
-  list: allow
-  bash:
-    "*": deny
-    "git status*": allow
-    "git diff*": allow
-    "git log*": allow
-    "git branch*": allow
-  task: deny
-  webfetch: deny
-  websearch: deny
-  lsp: allow
-  skill: deny
-  todowrite: deny
+    read: allow
+    edit: deny
+    glob: allow
+    grep: allow
+    list: allow
+    bash:
+        "*": deny
+        "git status*": allow
+        "git diff*": allow
+        "git log*": allow
+        "git branch*": allow
+    task: deny
+    webfetch: deny
+    websearch: deny
+    lsp: allow
+    skill: deny
+    todowrite: deny
 ---
 
 Eres un subagente especializado en revisión de cambios Git.

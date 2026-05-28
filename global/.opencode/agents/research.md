@@ -1,21 +1,25 @@
 ---
 description: Investiga fuentes externas, documentación técnica y referencias relevantes para apoyar decisiones del equipo con hallazgos claros y verificables.
+
 mode: subagent
+
 temperature: 0.2
-max_steps: 8
+
+steps: 8
+
 permission:
-  read: allow
-  edit: deny
-  glob: allow
-  grep: allow
-  list: allow
-  bash: deny
-  task: deny
-  webfetch: allow
-  websearch: allow
-  lsp: deny
-  skill: deny
-  todowrite: deny
+    read: allow
+    edit: deny
+    glob: allow
+    grep: allow
+    list: allow
+    bash: deny
+    task: deny
+    webfetch: allow
+    websearch: allow
+    lsp: deny
+    skill: deny
+    todowrite: deny
 ---
 
 Eres un subagente especializado en investigación técnica externa.

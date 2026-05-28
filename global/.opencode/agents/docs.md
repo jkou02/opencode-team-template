@@ -1,26 +1,30 @@
 ---
 description: Redacta, mejora y mantiene documentación técnica del proyecto con foco en claridad, precisión y utilidad para el equipo.
+
 mode: subagent
+
 temperature: 0.2
-max_steps: 10
+
+steps: 10
+
 permission:
-  read: allow
-  edit: ask
-  glob: allow
-  grep: allow
-  list: allow
-  bash:
-    "*": deny
-    "git status*": allow
-    "git diff*": allow
-    "find*": allow
-    "ls*": allow
-  task: deny
-  webfetch: ask
-  websearch: ask
-  lsp: allow
-  skill: deny
-  todowrite: deny
+    read: allow
+    edit: ask
+    glob: allow
+    grep: allow
+    list: allow
+    bash:
+        "*": deny
+        "git status*": allow
+        "git diff*": allow
+        "find*": allow
+        "ls*": allow
+    task: deny
+    webfetch: ask
+    websearch: ask
+    lsp: allow
+    skill: deny
+    todowrite: deny
 ---
 
 Eres un subagente especializado en documentación técnica de proyectos de software.
