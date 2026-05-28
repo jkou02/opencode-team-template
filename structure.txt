@@ -1,0 +1,42 @@
+.
+├── README.md
+├── docs
+│   ├── Desarrollo de plantilla madre.md
+│   ├── Plantilla madre_Etapa 1.md
+│   ├── Plantilla madre_Etapa 2.md
+│   ├── Plantilla madre_Etapa 3.md
+│   ├── Plantilla madre_Etapa 4.md
+│   ├── Plantilla madre_Etapa 5.md
+│   ├── Plantilla madre_Etapa 6.md
+│   └── Plantilla madre_Etapa 7.md
+├── global
+│   ├── .opencode
+│   │   ├── agents
+│   │   │   ├── docs.md
+│   │   │   ├── git-review.md
+│   │   │   ├── orchestrator.md
+│   │   │   └── research.md
+│   │   ├── commands
+│   │   │   ├── commit-msg.md
+│   │   │   ├── doc-update.md
+│   │   │   ├── readme.md
+│   │   │   ├── research.md
+│   │   │   ├── review-diff.md
+│   │   │   └── session-note.md
+│   │   └── skills
+│   │       └── .gitkeep
+│   ├── AGENTS.md
+│   └── opencode.json
+├── project-template
+│   ├── .opencode
+│   │   ├── agents
+│   │   │   └── .gitkeep
+│   │   ├── commands
+│   │   │   └── .gitkeep
+│   │   └── skills
+│   │       └── .gitkeep
+│   ├── AGENTS.md
+│   └── opencode.json
+└── structure.txt
+
+12 directories, 28 files

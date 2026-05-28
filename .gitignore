@@ -1,0 +1,74 @@
+# ==============================================================================
+# OpenCode Template - Git Ignore Configuration
+# ==============================================================================
+
+# --- Archivos del Sistema Operativo ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+[Dd]esktop.ini
+
+# --- Carpetas y archivos de IDEs / Editores ---
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# --- Logs y Archivos Temporales ---
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# --- Dependencias y Paquetes de Terceros ---
+node_modules/
+jspm_packages/
+bower_components/
+
+# --- Entornos Virtuales y Python ---
+.venv/
+venv/
+ENV/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+htmlcov/
+
+# --- Compilados, Builds y Cachés de Frameworks ---
+dist/
+build/
+out/
+.next/
+.nuxt/
+.turbo/
+.cache/
+.parcel-cache/
+
+# ==============================================================================
+# REGLA CRÍTICA: Asegurar rastreo de carpetas .opencode/
+# ==============================================================================
+# De acuerdo con los requisitos del proyecto, las carpetas ocultas llamadas
+# .opencode/ (ubicadas en global/.opencode/ y project-template/.opencode/)
+# y todo su contenido deben subirse obligatoriamente a GitHub.
+!.opencode/
+!.opencode/**
