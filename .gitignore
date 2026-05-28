@@ -13,6 +13,7 @@ Thumbs.db
 [Dd]esktop.ini
 
 # --- Carpetas y archivos de IDEs / Editores ---
+bitacora/
 .idea/
 .vscode/
 *.suo
