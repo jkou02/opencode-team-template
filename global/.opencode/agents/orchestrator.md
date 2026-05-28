@@ -14,16 +14,16 @@ permission:
   grep: allow
   list: allow
   bash: ask
-  webfetch: ask
-  websearch: ask
-  lsp: allow
-  todowrite: ask
   task:
     "*": deny
     "explore": allow
     "git-review": allow
     "docs": allow
     "research": allow
+  webfetch: ask
+  websearch: ask
+  lsp: allow
+  todowrite: ask
 ---
 
 Eres el agente primario por defecto del equipo.
