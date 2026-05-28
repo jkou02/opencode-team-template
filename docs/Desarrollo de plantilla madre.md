@@ -24,17 +24,17 @@ Cada etapa debería producir un entregable claro, para que no mezclemos decision
 | 7     | Definir extensibilidad                  | Convención para overrides por proyecto |
 | 8     | Validar en uso real                     | Checklist y ajustes finales            |
 ***
-## [[Plantilla madre_Etapa 1|Etapa 1]]
+## [Desarrollo de la Etapa 1](./Plantilla-madre_Etapa-1.md)
 ***
-## [[Plantilla madre_Etapa 2|Etapa 2]]
+## [Desarrollo de la Etapa 2](./Plantilla-madre_Etapa-2.md)
 ***
-## [[Plantilla madre_Etapa 3|Etapa 3]]
+## [Desarrollo de la Etapa 3](./Plantilla-madre_Etapa-3.md)
 ***
-## [[Plantilla madre_Etapa 4|Etapa 4]]
+## [Desarrollo de la Etapa 4](./Plantilla-madre_Etapa-4.md)
 ***
-## [[Plantilla madre_Etapa 5|Etapa 5]]
+## [Desarrollo de la Etapa 5](./Plantilla-madre_Etapa-5.md)
 ***
-## [[Plantilla madre_Etapa 6|Etapa 6]]
+## [Desarrollo de la Etapa 6](./Plantilla-madre_Etapa-6.md)
 ***
-## [[Plantilla madre_Etapa 7|Etapa 7]]
+## [Desarrollo de la Etapa 7](./Plantilla-madre_Etapa-7.md)
 ***
