@@ -26,8 +26,10 @@ RUN_DOCTOR=false
 
 PROJECT_PATH=""
 DESKTOP_PACKAGE="auto"         # auto|deb|rpm
-DESKTOP_URL_DEB="${OPENCODE_DESKTOP_URL_DEB:-}"
-DESKTOP_URL_RPM="${OPENCODE_DESKTOP_URL_RPM:-}"
+# DESKTOP_URL_DEB="${OPENCODE_DESKTOP_URL_DEB:-}"
+DESKTOP_URL_DEB="https://opencode.ai/es/download/stable/linux-x64-deb"
+# DESKTOP_URL_RPM="${OPENCODE_DESKTOP_URL_RPM:-}"
+DESKTOP_URL_RPM="https://opencode.ai/es/download/stable/linux-x64-rpm"
 TEMP_DIR=""
 
 # Summary tracking (for JSON output)
