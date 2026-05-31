@@ -7,6 +7,7 @@ Plantilla base para organizar OpenCode con una capa global compartida y una capa
 - [Cuándo usar esta plantilla](#cuándo-usar-esta-plantilla)
 - [Estructura del repositorio](#estructura-del-repositorio)
 - [Instalación](#instalación)
+- [Configurar alias (Recomendado)](#configurar-alias-recomendado)
 - [Uso rápido](#uso-rápido)
 - [Personalización](#personalización)
 - [Documentación](#documentación)
@@ -88,7 +89,81 @@ También puedes ejecutarlo de manera no interactiva usando flags:
 - `./install.sh --cli` (Solo instala/actualiza el CLI de OpenCode)
 - `./install.sh --global` (Solo copia la configuración global a `~/.config/opencode/`)
 - `./install.sh --project [ruta]` (Inicializa la plantilla local del proyecto en la ruta especificada)
+- `./install.sh --sync [ruta]` (Sincroniza plantillas actualizadas al proyecto, sobrescribe con backup)
 - `./install.sh --all` (Realiza la instalación completa y configura el proyecto en el directorio actual)
+
+---
+
+## Configurar alias (Recomendado)
+
+Para usar el instalador desde cualquier carpeta sin necesidad de navegar al repositorio, configura un alias en tu shell. Esto te permite ejecutar comandos como `install-template --project ~/mi-proyecto` desde cualquier lugar.
+
+### Configurar en bash
+
+1. Abre tu archivo de configuración:
+   ```bash
+   nano ~/.bashrc
+   ```
+
+2. Agrega la siguiente línea al final del archivo (ajusta la ruta según donde clonaste el repositorio):
+   ```bash
+   alias install-template="/ruta/a/opencode-team-template/install.sh"
+   ```
+
+3. Recarga la configuración:
+   ```bash
+   source ~/.bashrc
+   ```
+
+### Configurar en zsh
+
+1. Abre tu archivo de configuración:
+   ```bash
+   nano ~/.zshrc
+   ```
+
+2. Agrega la siguiente línea al final del archivo (ajusta la ruta según donde clonaste el repositorio):
+   ```bash
+   alias install-template="/ruta/a/opencode-team-template/install.sh"
+   ```
+
+3. Recarga la configuración:
+   ```bash
+   source ~/.zshrc
+   ```
+
+### Verificar que funciona
+
+```bash
+# Verificar que el alias está configurado
+type install-template
+
+# Ejecutar el instalador con ayuda
+install-template --help
+```
+
+### Ejemplos de uso con alias
+
+```bash
+# Instalar plantillas en un proyecto nuevo
+install-template --project ~/mi-nuevo-proyecto
+
+# Sincronizar plantillas actualizadas a un proyecto existente
+install-template --sync ~/mi-proyecto-activo
+
+# Instalación completa (global + proyecto)
+install-template --global --project . -y
+
+# Solo verificar el entorno
+install-template --doctor
+
+# Ver qué haría sin aplicar cambios
+install-template --project ~/mi-proyecto --dry-run
+```
+
+### Nota sobre la ubicación del repositorio
+
+El alias funciona porque `install.sh` resuelve automáticamente las rutas a `global/` y `project-template/` usando la ubicación del script, no la carpeta actual donde ejecutas el comando. Esto significa que importa dónde clonaste el repositorio, pero una vez configurado el alias, puedes ejecutarlo desde cualquier lugar.
 
 ---
 
