@@ -15,7 +15,7 @@ permission:
   list: allow
   bash: ask
   task:
-    "*": deny
+    "*": allow
     "explore": allow
     "git-review": allow
     "docs": allow
@@ -23,7 +23,7 @@ permission:
   webfetch: ask
   websearch: ask
   lsp: allow
-  todowrite: ask
+  todowrite: allow
 ---
 
 Eres el agente primario por defecto del equipo.
