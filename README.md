@@ -4,8 +4,11 @@ Plantilla base para organizar OpenCode con una capa global compartida y una capa
 
 - [Resumen](#resumen)
 - [Qué incluye](#qué-incluye)
+- [Agentes incluidos](#agentes-incluidos)
+- [Comandos incluidos](#comandos-incluidos)
 - [Cuándo usar esta plantilla](#cuándo-usar-esta-plantilla)
 - [Estructura del repositorio](#estructura-del-repositorio)
+- [Requisitos previos](#requisitos-previos)
 - [Instalación](#instalación)
 - [Configurar alias (Recomendado)](#configurar-alias-recomendado)
 - [Uso rápido](#uso-rápido)
@@ -21,6 +24,19 @@ Esta plantilla incluye una base reutilizable para organizar OpenCode con una con
 - Comandos reutilizables para flujos frecuentes como actualización documental, revisión de cambios, notas de sesión y soporte de README.
 - Una estructura preparada para separar configuración global y personalización local por proyecto, evitando mezclar reglas universales con decisiones específicas del repositorio.
 - Una base documental pensada para crecer en `README` y archivos de apoyo, priorizando claridad, mantenibilidad y alineación con el estado real del proyecto.
+## Agentes incluidos
+- **orchestrator**: Coordinador principal que delega tareas, aclarar requisitos y orquestar subtareas a especialistas cuando conviene.
+- **docs**: Documentación técnica, mejora y mantenimiento de README, guías y documentación del proyecto.
+- **git-review**: Revisión de cambios, análisis de diffs, detección de riesgos y propuestas de mensajes de commit.
+- **research**: Investigación externa, documentación técnica y referencias relevantes para apoyar decisiones del equipo.
+## Comandos incluidos
+- `commit-msg`: Sugerencia de mensajes de commit siguiendo convenciones establecidas.
+- `create-agent`: Creación de nuevos agentes personalizados.
+- `doc-update`: Actualización documental del proyecto.
+- `readme`: Soporte para creación y mantenimiento del README.
+- `research`: Investigación externa y documentación técnica.
+- `review-diff`: Revisión detallada de diferencias en código.
+- `session-note`: Registro de notas de sesión y contexto de trabajo.
 ## Cuándo usar esta plantilla
 Esta plantilla es útil cuando se necesita una base consistente para trabajar con OpenCode en varios repositorios sin tener que reconstruir la configuración desde cero en cada proyecto. También resulta adecuada cuando se quiere separar reglas globales, reutilizables entre entornos, de ajustes específicos que solo pertenecen a un repositorio o stack concreto.
 
@@ -36,19 +52,28 @@ La plantilla se organiza para separar reglas compartidas, agentes especializados
 ```text
 .
 ├── global/
+│   ├── .opencode/
+│   │   ├── agents/
+│   │   │   ├── orchestrator.md
+│   │   │   ├── docs.md
+│   │   │   ├── git-review.md
+│   │   │   └── research.md
+│   │   ├── commands/
+│   │   │   ├── commit-msg.md
+│   │   │   ├── create-agent.md
+│   │   │   ├── doc-update.md
+│   │   │   ├── readme.md
+│   │   │   ├── research.md
+│   │   │   ├── review-diff.md
+│   │   │   └── session-note.md
+│   │   └── skills/
 │   ├── AGENTS.md
-│   ├── agents/
-│   │   ├── orchestrator.md
-│   │   ├── docs.md
-│   │   ├── git-review.md
-│   │   └── research.md
-│   └── commands/
-│       ├── commit-msg.md
-│       ├── doc-update.md
-│       ├── readme.md
-│       ├── review-diff.md
-│       └── session-note.md
+│   └── opencode.json
 ├── project-template/
+│   ├── .opencode/
+│   │   ├── agents/
+│   │   ├── commands/
+│   │   └── skills/
 │   ├── AGENTS.md
 │   └── opencode.json
 ├── docs/
@@ -58,15 +83,23 @@ La plantilla se organiza para separar reglas compartidas, agentes especializados
 ```
 
 - `global/`: contiene la configuración compartida que sirve como base común para todos los proyectos que usen la plantilla.
+- `global/.opencode/`: carpeta de configuración de OpenCode con agentes, comandos y skills reutilizables.
+- `global/.opencode/agents/`: reúne los agentes reutilizables del entorno, incluyendo el orquestador principal y subagentes especializados.
+- `global/.opencode/commands/`: contiene comandos listos para tareas frecuentes como actualizar documentación, revisar cambios, redactar `README` o registrar notas de sesión.
+- `global/.opencode/skills/`: reservado para skills personalizados que amplíen capacidades de los agentes.
 - `global/AGENTS.md`: define reglas globales de comportamiento, validación, seguridad, documentación y estilo de trabajo.
-- `global/agents/`: reúne los agentes reutilizables del entorno, incluyendo el orquestador principal y subagentes especializados.
-- `global/commands/`: contiene comandos listos para tareas frecuentes como actualizar documentación, revisar cambios, redactar `README` o registrar notas de sesión.
+- `global/opencode.json`: configuración global de OpenCode, incluyendo modelo por defecto, shell y política de permisos.
 - `project-template/`: ofrece la base que se copia dentro de un repositorio nuevo para definir su configuración local.
+- `project-template/.opencode/`: estructura local de OpenCode con carpetas para agents, commands y skills del proyecto.
 - `project-template/AGENTS.md`: extiende las reglas globales con instrucciones específicas del proyecto, stack o arquitectura cuando haga falta.
 - `project-template/opencode.json`: concentra la configuración local del proyecto, incluyendo ajustes operativos como el modelo por defecto.
 - `docs/`: reservado para documentación más detallada, como guías de instalación, arquitectura, personalización o mantenimiento.
 - `README.md`: actúa como punto de entrada de la plantilla y resume propósito, estructura, instalación y enlaces a documentación complementaria.
 - `install.sh`: script de instalación guiada de la plantilla.
+## Requisitos previos
+- OpenCode Terminal o Desktop instalado en tu sistema
+- Linux (el instalador `install.sh` está diseñado para Linux)
+- Shell bash o zsh
 ## Instalación
 La plantilla está pensada para usarse en dos niveles: una capa global compartida entre proyectos y una capa local dentro de cada repositorio. Esta separación permite mantener reglas reutilizables en un solo lugar y adaptar cada proyecto sin duplicar configuración innecesaria. 
 ### Orden recomendado
@@ -177,7 +210,14 @@ Usa esta instalación si quieres definir una base común para todas tus sesiones
    ```bash
    mkdir -p ~/.config/opencode
    ```
-2. Copia dentro de `~/.config/opencode/` el contenido de la carpeta `global/` de esta plantilla.
+2. Copia dentro de `~/.config/opencode/` el contenido de la carpeta `global/` de esta plantilla. Los archivos quedarán ubicados en:
+   ```text
+   ~/.config/opencode/.opencode/agents/    # Agentes reutilizables
+   ~/.config/opencode/.opencode/commands/  # Comandos disponibles
+   ~/.config/opencode/.opencode/skills/    # Skills personalizados
+   ~/.config/opencode/AGENTS.md            # Reglas globales
+   ~/.config/opencode/opencode.json        # Configuración global
+   ```
 3. Verifica que el archivo principal de instrucciones globales quede disponible en:
    ```text
    ~/.config/opencode/AGENTS.md
