@@ -643,9 +643,18 @@ install_global() {
   copy_file_if_exists "$GLOBAL_SOURCE/AGENTS.md" "$dest_dir/"
   copy_file_if_exists "$GLOBAL_SOURCE/opencode.json" "$dest_dir/"
 
-  # Copy .opencode directory generically (agents, commands, skills, and future subdirs)
+  # Copy contents of .opencode/ directly (agents/, commands/, skills/, etc.)
+  # so they end up at the same level as AGENTS.md and opencode.json
   if [[ -d "$GLOBAL_SOURCE/.opencode" ]]; then
-    copy_dir_contents_if_exists "$GLOBAL_SOURCE/.opencode" "$dest_dir/.opencode/"
+    for _entry in "$GLOBAL_SOURCE/.opencode"/* "$GLOBAL_SOURCE/.opencode"/.*; do
+      _basename="$(basename "$_entry")"
+      [[ "$_basename" = "." || "$_basename" = ".." ]] && continue
+      if [[ -d "$_entry" ]]; then
+        copy_dir_contents_if_exists "$_entry" "$dest_dir/"
+      elif [[ -f "$_entry" ]]; then
+        copy_file_if_exists "$_entry" "$dest_dir/"
+      fi
+    done
   fi
 
   emit_ok "Plantilla global instalada en '$dest_dir'." "global"
