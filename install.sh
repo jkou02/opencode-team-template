@@ -6,7 +6,7 @@ set -Eeuo pipefail
 # CLI-friendly version with alias support
 # ==============================================================================
 
-VERSION="2.1.0"
+VERSION="2.2.0"
 
 # ------------------------------------------------------------------------------
 # Defaults
@@ -23,6 +23,7 @@ INSTALL_GLOBAL=false
 INSTALL_PROJECT=false
 INSTALL_SYNC=false
 RUN_DOCTOR=false
+INSTALL_I_HAVE_ADHD=false
 
 PROJECT_PATH=""
 DESKTOP_PACKAGE="auto"         # auto|deb|rpm
@@ -41,6 +42,7 @@ SUMMARY_STEPS=()
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GLOBAL_SOURCE="$SCRIPT_DIR/global"
 PROJECT_TEMPLATE_SOURCE="$SCRIPT_DIR/project-template"
+I_HAVE_ADHD_REPO="https://github.com/ayghri/i-have-adhd"
 
 # ------------------------------------------------------------------------------
 # Colors
@@ -202,6 +204,7 @@ Opciones principales:
   --sync [ruta]           Sincroniza plantillas actualizadas al proyecto (sobrescribe)
   --all                   Ejecuta: terminal + desktop + global + project('.')
   --doctor                Ejecuta validaciones del entorno
+  --with-i-have-adhd      Instala la skill/plugin i-have-adhd (clona desde GitHub)
   --dry-run               Muestra lo que haría sin aplicar cambios
 
 Opciones de comportamiento:
@@ -726,6 +729,112 @@ sync_project() {
 }
 
 # ------------------------------------------------------------------------------
+# Optional vendor skill: i-have-adhd
+# ------------------------------------------------------------------------------
+# Registra una entrada en el array "plugin" de un opencode.json de forma
+# idempotente. Usa jq si está disponible; si no, python3. Devuelve 0 si se
+# editó el archivo y 1 si no se pudo (falta jq y python3).
+register_plugin_entry() {
+  local config_file="$1"
+  local plugin_entry="$2"
+
+  if command -v jq >/dev/null 2>&1; then
+    local tmp_file
+    tmp_file="$(mktemp)"
+    if jq --arg p "$plugin_entry" \
+      '.plugin = ((.plugin // []) | if index($p) then . else . + [$p] end)' \
+      "$config_file" > "$tmp_file" 2>/dev/null; then
+      cp "$tmp_file" "$config_file" || { rm -f "$tmp_file"; return 1; }
+      rm -f "$tmp_file"
+      return 0
+    fi
+    rm -f "$tmp_file"
+  fi
+
+  if command -v python3 >/dev/null 2>&1; then
+    if python3 - "$config_file" "$plugin_entry" <<'PYEOF'
+import json, sys
+path, entry = sys.argv[1], sys.argv[2]
+with open(path, encoding="utf-8") as f:
+    data = json.load(f)
+plugins = data.get("plugin") or []
+if entry not in plugins:
+    plugins.append(entry)
+data["plugin"] = plugins
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(data, f, indent=2, ensure_ascii=False)
+    f.write("\n")
+PYEOF
+    then
+      return 0
+    fi
+  fi
+
+  return 1
+}
+
+install_i_have_adhd() {
+  emit_step "Instalando skill/plugin i-have-adhd" "vendor"
+
+  require_cmd git
+
+  local config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/opencode"
+  local vendor_dir="$config_dir/vendor/i-have-adhd"
+  local plugin_rel="./vendor/i-have-adhd/.opencode/plugins/i-have-adhd.mjs"
+  local config_file="$config_dir/opencode.json"
+
+  safe_mkdir "$config_dir"
+  safe_mkdir "$config_dir/vendor"
+
+  if [[ -d "$vendor_dir/.git" ]]; then
+    emit_info "Actualizando i-have-adhd en '$vendor_dir'" "vendor"
+    if [[ "$DRY_RUN" == true ]]; then
+      emit_info "DRY-RUN: git -C '$vendor_dir' pull --ff-only" "vendor"
+    elif [[ "$OUTPUT_JSON" == true ]]; then
+      git -C "$vendor_dir" pull --ff-only >/dev/null 2>&1 \
+        || emit_warn "No se pudo actualizar i-have-adhd; se mantiene la versión existente." "vendor"
+    else
+      git -C "$vendor_dir" pull --ff-only \
+        || emit_warn "No se pudo actualizar i-have-adhd; se mantiene la versión existente." "vendor"
+    fi
+  else
+    emit_info "Clonando i-have-adhd desde $I_HAVE_ADHD_REPO" "vendor"
+    if [[ "$DRY_RUN" == true ]]; then
+      emit_info "DRY-RUN: git clone --depth 1 '$I_HAVE_ADHD_REPO' '$vendor_dir'" "vendor"
+    elif [[ "$OUTPUT_JSON" == true ]]; then
+      if ! git clone --depth 1 "$I_HAVE_ADHD_REPO" "$vendor_dir" >/dev/null 2>&1; then
+        emit_error "No se pudo clonar i-have-adhd desde $I_HAVE_ADHD_REPO." "vendor"
+        record_summary_step "vendor" "error"
+        return 1
+      fi
+    else
+      if ! git clone --depth 1 "$I_HAVE_ADHD_REPO" "$vendor_dir"; then
+        emit_error "No se pudo clonar i-have-adhd desde $I_HAVE_ADHD_REPO." "vendor"
+        record_summary_step "vendor" "error"
+        return 1
+      fi
+    fi
+  fi
+
+  if [[ "$DRY_RUN" == true ]]; then
+    emit_info "DRY-RUN: registrar plugin '$plugin_rel' en '$config_file'" "vendor"
+  elif [[ -f "$config_file" ]]; then
+    if register_plugin_entry "$config_file" "$plugin_rel"; then
+      emit_ok "Plugin registrado en '$config_file'." "vendor"
+    else
+      emit_warn "No se pudo editar '$config_file' automáticamente (falta jq/python3)." "vendor"
+      emit_warn "Añade manualmente: \"plugin\": [\"$plugin_rel\"]" "vendor"
+    fi
+  else
+    emit_warn "No se encontró '$config_file'. Tras instalar la plantilla global, añade:" "vendor"
+    emit_warn "  \"plugin\": [\"$plugin_rel\"]" "vendor"
+  fi
+
+  emit_ok "Skill/plugin i-have-adhd listo. Reinicia OpenCode y usa /i-have-adhd." "vendor"
+  record_summary_step "vendor" "ok"
+}
+
+# ------------------------------------------------------------------------------
 # Interactive menu (optional only)
 # ------------------------------------------------------------------------------
 interactive_menu() {
@@ -816,6 +925,10 @@ parse_args() {
         INSTALL_GLOBAL=true
         shift
         ;;
+      --with-i-have-adhd)
+        INSTALL_I_HAVE_ADHD=true
+        shift
+        ;;
       --project)
         INSTALL_PROJECT=true
         if [[ -n "${2:-}" && "${2:-}" != -* ]]; then
@@ -899,6 +1012,7 @@ main() {
      [[ "$INSTALL_GLOBAL" == false ]] && \
      [[ "$INSTALL_PROJECT" == false ]] && \
      [[ "$INSTALL_SYNC" == false ]] && \
+     [[ "$INSTALL_I_HAVE_ADHD" == false ]] && \
      [[ "$RUN_DOCTOR" == false ]]; then
     interactive_menu
     exit 0
@@ -909,6 +1023,7 @@ main() {
      [[ "$INSTALL_GLOBAL" == false ]] && \
      [[ "$INSTALL_PROJECT" == false ]] && \
      [[ "$INSTALL_SYNC" == false ]] && \
+     [[ "$INSTALL_I_HAVE_ADHD" == false ]] && \
      [[ "$RUN_DOCTOR" == false ]]; then
     # Sin parámetros: mostrar menú interactivo por defecto
     interactive_menu
@@ -923,6 +1038,7 @@ main() {
   [[ "$INSTALL_GLOBAL" == true ]] && install_global
   [[ "$INSTALL_PROJECT" == true ]] && install_project "${PROJECT_PATH:-.}"
   [[ "$INSTALL_SYNC" == true ]] && sync_project "${PROJECT_PATH:-.}"
+  [[ "$INSTALL_I_HAVE_ADHD" == true ]] && install_i_have_adhd
 
   emit_summary
   emit_ok "Proceso completado."
