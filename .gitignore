@@ -65,6 +65,11 @@ out/
 .cache/
 .parcel-cache/
 
+# --- Backups generados por install.sh ---
+# Respaldos automáticos con timestamp (<destino>/.opencode_backup_<ts>).
+# No forman parte del proyecto y no deben versionarse.
+.opencode_backup_*/
+
 # ==============================================================================
 # REGLA CRÍTICA: Asegurar rastreo de carpetas .opencode/
 # ==============================================================================
