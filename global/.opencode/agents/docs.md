@@ -3,6 +3,8 @@ description: Redacta, mejora y mantiene documentación técnica del proyecto con
 
 mode: subagent
 
+model: opencode-go/minimax-m3
+
 temperature: 0.2
 
 steps: 10

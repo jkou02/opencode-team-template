@@ -3,6 +3,8 @@ description: Revisa cambios en Git, analiza diffs, detecta riesgos y propone men
 
 mode: subagent
 
+model: opencode-go/glm-5.3-flash
+
 temperature: 0.1
 
 steps: 8

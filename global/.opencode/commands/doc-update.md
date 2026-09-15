@@ -1,6 +1,7 @@
 ---
 description: Revisa cambios recientes y propone actualizaciones de documentación relacionadas.
 agent: docs
+model: opencode-go/kimi-k3
 subtask: true
 ---
 

@@ -1,6 +1,7 @@
 ---
 description: Crea, mejora o reestructura el README principal del proyecto.
 agent: docs
+model: opencode-go/minimax-m3
 subtask: true
 ---
 

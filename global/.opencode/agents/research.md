@@ -3,6 +3,8 @@ description: Investiga fuentes externas, documentación técnica y referencias r
 
 mode: subagent
 
+model: opencode-go/kimi-k3
+
 temperature: 0.2
 
 steps: 8

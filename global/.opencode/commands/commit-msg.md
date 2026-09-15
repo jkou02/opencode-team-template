@@ -1,6 +1,7 @@
 ---
 description: Propone un mensaje de commit usando Conventional Commits a partir de los cambios actuales.
 agent: git-review
+model: opencode-go/qwen3.8-flash
 subtask: true
 ---
 
