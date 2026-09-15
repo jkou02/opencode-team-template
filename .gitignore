@@ -70,6 +70,11 @@ out/
 # No forman parte del proyecto y no deben versionarse.
 .opencode_backup_*/
 
+# --- Vendor de terceros ---
+# install.sh clona i-have-adhd desde GitHub en ~/.config/opencode/vendor/;
+# cualquier copia local bajo global/vendor/ es residuo y no se versiona.
+global/vendor/
+
 # ==============================================================================
 # REGLA CRÍTICA: Asegurar rastreo de carpetas .opencode/
 # ==============================================================================
