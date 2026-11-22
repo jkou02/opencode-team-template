@@ -20,7 +20,7 @@ Plantilla base para organizar OpenCode con una capa global compartida y una capa
 Esta plantilla incluye una base reutilizable para organizar OpenCode con una configuración compartida y una capa adaptable por proyecto. Su estructura está pensada para mantener consistencia operativa, reducir configuración repetida y facilitar la incorporación de nuevas reglas, agentes y flujos de trabajo. 
 - Reglas globales de trabajo para mantener respuestas claras, cambios seguros, validación antes de cerrar tareas y documentación basada en información verificable.
 - Un agente primario de orquestación encargado de coordinar tareas, aclarar requisitos y delegar subtareas a especialistas cuando conviene. 
-- Subagentes especializados para documentación, revisión técnica e investigación, definidos para resolver tareas concretas con menos ruido y mayor consistencia. 
+- Subagentes especializados para documentación, implementación de código, revisión técnica e investigación, definidos para resolver tareas concretas con menos ruido y mayor consistencia. 
 - Comandos reutilizables para flujos frecuentes como actualización documental, revisión de cambios, notas de sesión y soporte de README.
 - Una estructura preparada para separar configuración global y personalización local por proyecto, evitando mezclar reglas universales con decisiones específicas del repositorio.
 - Una base documental pensada para crecer en `README` y archivos de apoyo, priorizando claridad, mantenibilidad y alineación con el estado real del proyecto.
@@ -29,6 +29,10 @@ Esta plantilla incluye una base reutilizable para organizar OpenCode con una con
 - **docs**: Documentación técnica, mejora y mantenimiento de README, guías y documentación del proyecto.
 - **git-review**: Revisión de cambios, análisis de diffs, detección de riesgos y propuestas de mensajes de commit.
 - **research**: Investigación externa, documentación técnica y referencias relevantes para apoyar decisiones del equipo.
+- **code-writer**: Implementación de código; traduce especificaciones técnicas en código funcional siguiendo la arquitectura y convenciones del proyecto.
+
+El agente `explore` no tiene archivo propio en esta plantilla: es un subagente integrado de OpenCode que se configura en el bloque `agents` de `global/opencode.json` con permisos para usar la skill `graphify`.
+
 ## Comandos incluidos
 - `commit-msg`: Sugerencia de mensajes de commit siguiendo convenciones establecidas.
 - `create-agent`: Creación de nuevos agentes personalizados.
@@ -54,9 +58,10 @@ La plantilla se organiza para separar reglas compartidas, agentes especializados
 ├── global/
 │   ├── .opencode/
 │   │   ├── agents/
-│   │   │   ├── orchestrator.md
+│   │   │   ├── code-writer.md
 │   │   │   ├── docs.md
 │   │   │   ├── git-review.md
+│   │   │   ├── orchestrator.md
 │   │   │   └── research.md
 │   │   ├── commands/
 │   │   │   ├── commit-msg.md
@@ -67,7 +72,13 @@ La plantilla se organiza para separar reglas compartidas, agentes especializados
 │   │   │   ├── review-diff.md
 │   │   │   └── session-note.md
 │   │   └── skills/
+│   │       ├── brainstorming/
+│   │       ├── graphify/
+│   │       ├── systematic-debugging/
+│   │       ├── verification-before-completion/
+│   │       └── writing-plans/
 │   ├── AGENTS.md
+│   ├── cli.json
 │   └── opencode.json
 ├── project-template/
 │   ├── .opencode/
@@ -76,9 +87,15 @@ La plantilla se organiza para separar reglas compartidas, agentes especializados
 │   │   └── skills/
 │   ├── AGENTS.md
 │   └── opencode.json
+├── .opencode/
+│   └── agents/
+│       └── analista-requisitos.md
 ├── docs/
 │   └── ...
+├── AGENTS.md
+├── LICENSE
 ├── install.sh
+├── structure.txt
 └── README.md
 ```
 
@@ -86,13 +103,15 @@ La plantilla se organiza para separar reglas compartidas, agentes especializados
 - `global/.opencode/`: carpeta de configuración de OpenCode con agentes, comandos y skills reutilizables.
 - `global/.opencode/agents/`: reúne los agentes reutilizables del entorno, incluyendo el orquestador principal y subagentes especializados.
 - `global/.opencode/commands/`: contiene comandos listos para tareas frecuentes como actualizar documentación, revisar cambios, redactar `README` o registrar notas de sesión.
-- `global/.opencode/skills/`: reservado para skills personalizados que amplíen capacidades de los agentes.
+- `global/.opencode/skills/`: skills reales de la plantilla: `brainstorming`, `graphify`, `systematic-debugging`, `verification-before-completion` y `writing-plans`.
 - `global/AGENTS.md`: define reglas globales de comportamiento, validación, seguridad, documentación y estilo de trabajo.
-- `global/opencode.json`: configuración global de OpenCode, incluyendo modelo por defecto, shell y política de permisos.
+- `global/opencode.json`: configuración global de OpenCode en formato V2: modelo, `default_agent`, permisos como array `permissions`, bloque `agents`, compactación, watcher, plugin `i-have-adhd` y servidor MCP de GitHub.
+- `global/cli.json`: preferencias del CLI/TUI (tema, sesión, diffs, notificaciones) que `install.sh` copia a `~/.config/opencode/cli.json`.
 - `project-template/`: ofrece la base que se copia dentro de un repositorio nuevo para definir su configuración local.
 - `project-template/.opencode/`: estructura local de OpenCode con carpetas para agents, commands y skills del proyecto.
 - `project-template/AGENTS.md`: extiende las reglas globales con instrucciones específicas del proyecto, stack o arquitectura cuando haga falta.
 - `project-template/opencode.json`: concentra la configuración local del proyecto, incluyendo ajustes operativos como el modelo por defecto.
+- `.opencode/` (raíz): configuración OpenCode local de este repositorio; contiene el subagente de ejemplo `analista-requisitos.md`.
 - `docs/`: reservado para documentación más detallada, como guías de instalación, arquitectura, personalización o mantenimiento.
 - `README.md`: actúa como punto de entrada de la plantilla y resume propósito, estructura, instalación y enlaces a documentación complementaria.
 - `install.sh`: script de instalación guiada de la plantilla.
@@ -210,13 +229,14 @@ Usa esta instalación si quieres definir una base común para todas tus sesiones
    ```bash
    mkdir -p ~/.config/opencode
    ```
-2. Copia dentro de `~/.config/opencode/` el contenido de la carpeta `global/` de esta plantilla. Los archivos quedarán ubicados en:
+2. Copia dentro de `~/.config/opencode/` los archivos `AGENTS.md`, `opencode.json` y `cli.json` de `global/`, y además el contenido de `global/.opencode/` para que `agents/`, `commands/` y `skills/` queden al mismo nivel (este es el comportamiento de `install.sh --global`). Los archivos quedarán ubicados en:
    ```text
-   ~/.config/opencode/.opencode/agents/    # Agentes reutilizables
-   ~/.config/opencode/.opencode/commands/  # Comandos disponibles
-   ~/.config/opencode/.opencode/skills/    # Skills personalizados
-   ~/.config/opencode/AGENTS.md            # Reglas globales
-   ~/.config/opencode/opencode.json        # Configuración global
+   ~/.config/opencode/agents/        # Agentes reutilizables
+   ~/.config/opencode/commands/      # Comandos disponibles
+   ~/.config/opencode/skills/        # Skills personalizados
+   ~/.config/opencode/AGENTS.md      # Reglas globales
+   ~/.config/opencode/opencode.json  # Configuración global (V2)
+   ~/.config/opencode/cli.json       # Preferencias del CLI/TUI
    ```
 3. Verifica que el archivo principal de instrucciones globales quede disponible en:
    ```text
@@ -247,7 +267,7 @@ Sigue estos pasos para empezar a usar la plantilla en un repositorio nuevo con u
 4. Verifica que el proyecto incluya `AGENTS.md` y `opencode.json`, y que `opencode.json` apunte a `./AGENTS.md` en la sección `instructions`.
 5. Ajusta `AGENTS.md` con reglas específicas del proyecto solo cuando necesites extender el comportamiento base.
 6. Revisa `opencode.json` y adapta el agente por defecto, el modelo o los permisos según el tipo de trabajo que harás en ese repositorio. 
-7. Inicia tu flujo de trabajo con OpenCode usando la configuración del proyecto. Si mantienes la plantilla actual, el agente por defecto será `build`, mientras que la capa global puede seguir aportando reglas compartidas de seguridad, validación y documentación. 
+7. Inicia tu flujo de trabajo con OpenCode usando la configuración del proyecto. Si mantienes la plantilla actual, el agente por defecto será `orchestrator` (valor real de `default_agent` en `project-template/opencode.json`), mientras que la capa global puede seguir aportando reglas compartidas de seguridad, validación y documentación. 
 
 Con esto ya tendrás una base funcional para trabajar con reglas comunes y personalización local sin rehacer la configuración desde cero en cada proyecto. 
 ## Personalización
@@ -255,9 +275,17 @@ La plantilla está diseñada para ofrecer una base común sin impedir ajustes po
 ### Reglas del proyecto
 Usa `AGENTS.md` para definir reglas propias del proyecto, del stack o de la arquitectura cuando no deban vivir en la configuración global. Este archivo debe extender la base común, no reemplazarla, y es el lugar adecuado para documentar convenciones locales, restricciones técnicas y criterios específicos de trabajo.
 ### Modelo y agente por defecto
-Usa `opencode.json` para cambiar el modelo principal, el modelo pequeño y el agente por defecto del proyecto. En la configuración actual, estos valores se controlan mediante `model`, `small_model` y `default_agent`, por lo que puedes adaptar la plantilla según el tipo de trabajo o el costo operativo que quieras priorizar.
+En el formato V2 actual, el modelo principal se define con `model` (la configuración global ya no usa `small_model`) y el agente por defecto con `default_agent`. Además, el bloque `agents` de `global/opencode.json` permite asignar modelo y permisos específicos por agente (por ejemplo `title`, `general` y `explore`), así que puedes adaptar la plantilla según el tipo de trabajo o el costo operativo que quieras priorizar.
 ### Permisos
-La política de permisos también se ajusta en `opencode.json`. La plantilla actual permite lectura e inspección con menos fricción, pero deja en modo `ask` acciones sensibles como edición, tareas, búsquedas web, instalación de dependencias y operaciones de Git que modifican el estado del repositorio.
+En V2 la política de permisos se ajusta en `opencode.json` mediante el array `permissions`, donde cada entrada especifica `action`, `resource` y `effect` (`allow`, `ask` o `deny`). En la configuración global actual, `edit` y `shell` están en modo `ask` sobre cualquier recurso, y cada agente puede refinar sus propios permisos dentro del bloque `agents`. Nota: `project-template/opencode.json` conserva por ahora el formato V1 (objeto `permission`) en su capa local.
+### Skills y graphify
+`global/.opencode/skills/` incluye cinco skills: `brainstorming`, `graphify`, `systematic-debugging`, `verification-before-completion` y `writing-plans`. `graphify` genera un grafo de conocimiento del repositorio en `graphify-out/`; `global/AGENTS.md` indica consultarlo con `graphify query` antes de leer múltiples archivos, y el agente `explore` tiene permisos explícitos para esa skill y sus comandos. El `watcher.ignore` de la configuración global excluye `**/graphify-out/**`.
+
+### Servidor MCP de GitHub
+`global/opencode.json` define `mcp.servers.github` como servidor local ejecutado con `npx -y @modelcontextprotocol/server-github`. El bloque `env` contiene solo un placeholder: para que funcione, el usuario debe proveer un token real mediante la variable de entorno `GITHUB_PERSONAL_ACCESS_TOKEN`.
+
+### Preferencias del CLI (cli.json)
+`global/cli.json` guarda preferencias de interfaz del CLI/TUI (tema, diffs, sesión, animaciones, depuración). `install.sh` lo copia junto con `AGENTS.md` y `opencode.json` a `~/.config/opencode/` al instalar la capa global.
 ### Instrucciones locales
 El archivo `opencode.json` usa `./AGENTS.md` en la sección `instructions`, por lo que la forma recomendada de personalizar el comportamiento del proyecto es modificar ese archivo en la raíz del repositorio. Si cambias el nombre o la ubicación del archivo de instrucciones, debes actualizar esa referencia para mantener consistencia.
 ### Cuándo personalizar cada capa

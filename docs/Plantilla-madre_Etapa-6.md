@@ -32,7 +32,7 @@ Este comando debería invocar al subagente `git-review`, correr como subtarea y
 Yo lo diseñaría con estas decisiones:
 - Nombre: `review-diff`, por lo que se invoca como `/review-diff`.
 - Agente: `git-review`.
-- `subtask: true`, para aislar el contexto.
+- `subagent: true`, para aislar el contexto.
 - Inyección de shell con `git status --short` y `git diff --stat`, y opcionalmente `git diff --cached --stat` si luego quieren contemplar staged changes aparte.
 - Un template corto que pida resumen, hallazgos, agrupación sugerida y commit recomendado.
 ##### Borrador de comando
@@ -40,7 +40,7 @@ Yo lo diseñaría con estas decisiones:
 ---
 description: Revisa los cambios actuales del repositorio y propone un resumen con riesgos y commit sugerido.
 agent: git-review
-subtask: true
+subagent: true
 ---
 
 Revisa el estado actual del repositorio usando la información disponible y genera una revisión breve de los cambios.
@@ -78,7 +78,7 @@ Este comando debería usar `git-review` y entregarle suficiente contexto para 
 Yo lo diseñaría así:
 - Nombre: `commit-msg`, invocado como `/commit-msg`.
 - Agente: `git-review`.
-- `subtask: true`, para mantener aislado el análisis.
+- `subagent: true`, para mantener aislado el análisis.
 - Inyección de `git status --short`, `git diff --stat` y `git diff --cached --stat`.
 - Salida corta y práctica, priorizando:
     - mensaje principal,
@@ -90,7 +90,7 @@ Yo lo diseñaría así:
 ---
 description: Propone un mensaje de commit usando Conventional Commits a partir de los cambios actuales.
 agent: git-review
-subtask: true
+subagent: true
 ---
 
 Propón un mensaje de commit para los cambios actuales del repositorio usando Conventional Commits.
@@ -145,14 +145,14 @@ Eso le da a `docs` una base real para decidir si hay que actualizar setup, uso
 Yo lo diseñaría así:
 - Nombre: `doc-update`, invocado como `/doc-update`.
 - Agente: `docs`.
-- `subtask: true`, para que la tarea documental no ensucie el contexto principal.
+- `subagent: true`, para que la tarea documental no ensucie el contexto principal.
 - Aceptar argumentos opcionales con `$ARGUMENTS`, para indicar un archivo o una sección específica si el usuario quiere algo más preciso.
 ##### Borrador de comando:
 ```text
 ---
 description: Revisa cambios recientes y propone actualizaciones de documentación relacionadas.
 agent: docs
-subtask: true
+subagent: true
 ---
 
 Revisa los cambios actuales del repositorio y determina si es necesario actualizar documentación.
@@ -203,7 +203,7 @@ Este comando vuelve sistemático un comportamiento que normalmente se olvida. En
 Yo lo diseñaría así:
 - Nombre: `research`, invocado como `/research`.
 - Agente: `research`.
-- `subtask: true`, para no contaminar el contexto principal.
+- `subagent: true`, para no contaminar el contexto principal.
 - Uso obligatorio de `$ARGUMENTS`, porque este comando sí necesita una consulta explícita.
 - Sin shell injection al inicio, porque la materia prima principal no es el repo sino la pregunta del usuario.
 ##### Borrador de comando:
@@ -211,7 +211,7 @@ Yo lo diseñaría así:
 ---
 description: Investiga una pregunta técnica o una referencia externa y devuelve una síntesis accionable.
 agent: research
-subtask: true
+subagent: true
 ---
 
 Investiga la siguiente pregunta o tema técnico:
@@ -260,7 +260,7 @@ Este comando debería delegar al subagente `docs` y enfocarlo en el archivo `
 Yo lo diseñaría así:
 - Nombre: `readme`, invocado como `/readme`.
 - Agente: `docs`.
-- `subtask: true`.
+- `subagent: true`.
 - Uso de `$ARGUMENTS` para especificar foco, por ejemplo “mejora onboarding”, “reestructura”, “actualiza instalación” o “crear desde cero”.
 - Inclusión del README actual cuando exista, para que el agente no escriba a ciegas.
 ##### Borrador del comando:
@@ -268,7 +268,7 @@ Yo lo diseñaría así:
 ---
 description: Crea, mejora o reestructura el README principal del proyecto.
 agent: docs
-subtask: true
+subagent: true
 ---
 
 Trabaja sobre el README principal del proyecto.
@@ -329,14 +329,14 @@ No intentaría extraer todo el historial de la conversación en el propio comand
 Yo lo diseñaría así:
 - Nombre: `session-note`, invocado como `/session-note`.
 - Agente: `docs`.
-- `subtask: true`.
+- `subagent: true`.
 - Uso opcional de `$ARGUMENTS` para indicar foco, por ejemplo “cierre del módulo auth” o “handoff para continuar mañana”.
 ##### Borrador del comando:
 ```text
 ---
 description: Genera una nota breve de sesión para registrar progreso, archivos tocados y próximos pasos.
 agent: docs
-subtask: true
+subagent: true
 ---
 
 Genera una nota de sesión útil para retomar el trabajo más adelante o dejar contexto a otra persona.

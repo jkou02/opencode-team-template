@@ -1,4 +1,7 @@
 # Desarrollo de la plantilla madre de OpenCode: Etapa 5
+
+> **Nota (Noviembre 2026):** Los bloques de frontmatter de este documento son el registro histórico del diseño y usan la sintaxis V1 de la época (`permission:` como objeto, `task:` anidado). En V2 los permisos se expresan como array `permissions` con entradas `{ action, resource, effect }`; la versión vigente de estos agentes está en `global/.opencode/agents/`.
+
 ***
 ## Etapa 5:
 OpenCode permite definir agentes con `mode: primary` o `mode: subagent`, asignarles modelo propio, y también dejar que un comando invoque un subagente como subtarea para no contaminar el contexto principal.

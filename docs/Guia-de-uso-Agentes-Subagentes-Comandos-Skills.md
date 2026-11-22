@@ -21,7 +21,8 @@ Esta nota explica los componentes principales de OpenCode y cómo usarlos correc
 **Qué son**: Agentes especializados que realizan tareas específicas. Tienen `mode: subagent` y solo se activan cuando el agente primario les delega trabajo.
 
 **Subagentes disponibles en esta plantilla**:
-- `explore`: Explora estructura del repositorio, localiza archivos e identifica flujos de código.
+- `code-writer`: Implementa y modifica código siguiendo la arquitectura y convenciones del proyecto.
+- `explore`: Explora estructura del repositorio, localiza archivos e identifica flujos de código (subagente integrado, configurado en `opencode.json` con permisos para `graphify`).
 - `git-review`: Analiza cambios en Git, detecta riesgos y propone mensajes de commit.
 - `docs`: Redacta y mantiene documentación técnica.
 - `research`: Investiga fuentes externas y documentación técnica.
@@ -78,6 +79,7 @@ task(subagent_type="git-review", prompt="revisa los cambios pendientes y propón
 
 **Comandos disponibles en esta plantilla**:
 - `commit-msg`: Genera mensajes de commit basados en cambios actuales
+- `create-agent`: Crea un nuevo agente o subagente personalizado de forma interactiva
 - `doc-update`: Revisa cambios y propone actualizaciones de documentación
 - `readme`: Ayuda a crear o actualizar README
 - `research`: Ejecuta investigación con parámetros personalizados
@@ -98,7 +100,7 @@ task(subagent_type="git-review", prompt="revisa los cambios pendientes y propón
 ---
 description: Descripción breve del comando
 agent: docs  // Subagente que ejecutará el comando
-subtask: true  // Si debe ejecutarse como subtarea
+subagent: true  // Si debe ejecutarse como subtarea
 ---
 
 Instrucciones para el subagente.
@@ -120,12 +122,16 @@ Pasos a seguir para el subagente.
 **Qué son**: Instrucciones especializadas que se cargan dinámicamente para tareas específicas. A diferencia de los agentes, las skills no son entidades independientes, sino conjuntos de instrucciones que se inyectan en el contexto actual.
 
 **Cuándo usarlas**: Para tareas que requieren conocimiento especializado no cubierto por los subagentes existentes. Por ejemplo:
-- Configurar OpenCode mismo (usar skill `customize-opencode`)
+- Trabajar con el grafo de conocimiento de un repositorio (usar skill `graphify`)
 - Trabajar con herramientas específicas
 - Seguir flujos de trabajo particulares
 
-**Skills disponibles**:
-- `customize-opencode`: Para editar configuración de OpenCode (archivos `opencode.json`, `.opencode/`, `~/.config/opencode/`)
+**Skills disponibles en esta plantilla** (instaladas desde `global/.opencode/skills/`):
+- `graphify`: Genera y consulta un grafo de conocimiento del repositorio; se usa con `graphify query` cuando existe `graphify-out/graph.json`.
+- `brainstorming`: Explora intención, requisitos y diseño antes de trabajo creativo.
+- `systematic-debugging`: Proceso sistemático ante bugs o fallos.
+- `verification-before-completion`: Valida con evidencia antes de dar una tarea por terminada.
+- `writing-plans`: Redacta planes de varios pasos antes de implementar.
 
 **Cómo cargar una skill**: Usa la herramienta `skill` con el nombre de la skill.
 
@@ -136,8 +142,8 @@ skill(name="nombre_skill")
 
 **Ejemplo**:
 ```javascript
-// Cargar skill para configurar OpenCode
-skill(name="customize-opencode")
+// Cargar skill para trabajar con el grafo del repositorio
+skill(name="graphify")
 ```
 
 **Diferencia entre skills y subagentes**:
@@ -152,7 +158,7 @@ skill(name="customize-opencode")
 |-----------|-------------|---------|
 | Delegar trabajo especializado | `task` con `subagent_type` | `task(subagent_type="docs", prompt="actualizar README")` |
 | Ejecutar un atajo predefinido | Comando con `/` | `/commit-msg` |
-| Cargar instrucciones especializadas | `skill` | `skill(name="customize-opencode")` |
+| Cargar instrucciones especializadas | `skill` | `skill(name="graphify")` |
 | Referenciar otro agente en archivos | `@nombre_agente` | "Delega en `@explore`" (solo en archivos .md) |
 
 ---
@@ -209,10 +215,10 @@ task(subagent_type="git-review", prompt="analiza los cambios en la rama feature/
 /review-diff
 ```
 
-### Caso 5: Configurar OpenCode
+### Caso 5: Analizar la estructura del repositorio
 ```
-// Cargar skill especializada
-skill(name="customize-opencode")
+// Cargar skill del grafo de conocimiento
+skill(name="graphify")
 ```
 
 ---
@@ -227,11 +233,11 @@ Si necesitas agregar nuevos subagentes, recuerda:
 
 Si necesitas agregar nuevos comandos:
 1. Crear el archivo en `.opencode/commands/nombre-comando.md`
-2. Definir el frontmatter con `description`, `agent` y `subtask`
+2. Definir el frontmatter con `description`, `agent` y `subagent`
 3. Usar `$ARGUMENTS` para parámetros del usuario
 4. Usar `!`comando`` para ejecutar comandos del sistema
 
 ---
 
-*Última actualización: Mayo 2026*
+*Última actualización: Noviembre 2026 (sincronización con configuración global V2)*
 *Plantilla Madre de OpenCode*
