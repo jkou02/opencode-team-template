@@ -6,7 +6,7 @@ set -Eeuo pipefail
 # CLI-friendly version with alias support
 # ==============================================================================
 
-VERSION="2.2.0"
+VERSION="2.3.0"
 
 # ------------------------------------------------------------------------------
 # Defaults
@@ -25,7 +25,16 @@ INSTALL_SYNC=false
 RUN_DOCTOR=false
 INSTALL_I_HAVE_ADHD=false
 
+NO_MCP=false
+ONLY_COMPONENTS=""               # agents,commands,skills,agents-md,config,cli,all
+RESTORE_REQUESTED=false
+RESTORE_TARGET="latest"          # latest | <timestamp>
+UNINSTALL=false
+
 PROJECT_PATH=""
+
+# Directorio de configuración global único (respeta XDG_CONFIG_HOME)
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/opencode"
 DESKTOP_PACKAGE="auto"         # auto|deb|rpm
 # DESKTOP_URL_DEB="${OPENCODE_DESKTOP_URL_DEB:-}"
 DESKTOP_URL_DEB="https://opencode.ai/es/download/stable/linux-x64-deb"
@@ -199,13 +208,38 @@ Opciones principales:
   --terminal              Instala o actualiza OpenCode Terminal
   --cli                   Alias de --terminal
   --desktop               Instala o actualiza OpenCode Desktop (Linux)
-  --global                Instala la configuración global en ~/.config/opencode
+  --global                Instala la configuración global en ${XDG_CONFIG_HOME:-$HOME/.config}/opencode
   --project [ruta]        Inicializa la plantilla local en la ruta indicada
   --sync [ruta]           Sincroniza plantillas actualizadas al proyecto (sobrescribe)
   --all                   Ejecuta: terminal + desktop + global + project('.')
-  --doctor                Ejecuta validaciones del entorno
+  --doctor                Ejecuta validaciones del entorno (sin interacción)
   --with-i-have-adhd      Instala la skill/plugin i-have-adhd (clona desde GitHub)
   --dry-run               Muestra lo que haría sin aplicar cambios
+
+Instalación por componentes (solo con --global):
+  --only <lista>          Instala solo los componentes indicados (separados por coma):
+                            agents      Agentes (.opencode/agents)
+                            commands    Comandos (.opencode/commands)
+                            skills      Skills (.opencode/skills)
+                            agents-md   AGENTS.md global
+                            config      AGENTS.md + opencode.json (merge no destructivo)
+                            cli         cli.json (merge no destructivo, preferencias del usuario ganan)
+                            all         Todo (comportamiento por defecto sin --only)
+                          Ejemplo: install.sh --global --only skills,cli
+
+MCP / GitHub:
+  --no-mcp                Omite el bloque 'mcp' en el opencode.json instalado
+                          El token NUNCA se pasa por CLI: si la variable de entorno
+                          GITHUB_PERSONAL_ACCESS_TOKEN está definida al instalar,
+                          se inyecta automáticamente en mcp.servers.github.env.
+
+Restauración / desinstalación:
+  --restore [ts|latest]   Restaura un backup global *_backup_<ts> (lista los disponibles;
+                          por defecto el más reciente). Con confirmación; compatible --dry-run
+  --uninstall             Global: restaura el backup más reciente si existe; si no,
+                          elimina los archivos instalados por la plantilla (con confirmación),
+                          el vendor i-have-adhd y su entrada en 'plugins'
+                          Con --project <ruta>: restaura el .opencode_backup_<ts> más reciente
 
 Opciones de comportamiento:
   -y, --yes               Acepta confirmaciones automáticamente
@@ -228,6 +262,24 @@ Ejemplos:
   # Instalación completa (terminal + global + proyecto)
   install-template --global --project . -y
 
+  # Instalar solo skills y preferencias de CLI
+  install-template --global --only skills,cli
+
+  # Instalar sin el bloque MCP de GitHub
+  install-template --global --no-mcp
+
+  # Configurar el token de GitHub MCP (el token no se expone en CLI ni en logs)
+  export GITHUB_PERSONAL_ACCESS_TOKEN=<tu-token>
+  install-template --global
+
+  # Restaurar el backup global más reciente / uno concreto
+  install-template --restore
+  install-template --restore 20260101_120000
+
+  # Desinstalar configuración global / plantilla de un proyecto
+  install-template --uninstall
+  install-template --project ~/mi-proyecto --uninstall
+
   # Solo verificar el entorno
   install-template --doctor
 
@@ -243,6 +295,9 @@ Alias (configurar una sola vez):
 Variables de entorno soportadas:
   OPENCODE_DESKTOP_URL_DEB
   OPENCODE_DESKTOP_URL_RPM
+  XDG_CONFIG_HOME                 (directorio base de la configuración global)
+  GITHUB_PERSONAL_ACCESS_TOKEN    (se inyecta en mcp.servers.github.env al instalar;
+                                   nunca se imprime ni se acepta como flag)
 
 Códigos de salida:
   0   Éxito
@@ -259,6 +314,8 @@ Códigos de salida:
   30  Falta valor para --desktop-package
   31  Falta URL para --desktop-url-deb
   32  Falta URL para --desktop-url-rpm
+  40  Uso inválido de --only / --restore / --uninstall
+  41  No se encontró ningún backup para restaurar o desinstalar
 
 Notas:
 - Este script funciona desde cualquier ubicación si se usa el alias.
@@ -346,6 +403,352 @@ copy_dir_contents_if_exists() {
       cp -r "$source" "$dest"
     fi
   fi
+}
+
+# ------------------------------------------------------------------------------
+# Component selection (--only)
+# ------------------------------------------------------------------------------
+validate_only_components() {
+  local list="$1"
+  local c
+
+  if [[ -z "$list" ]]; then
+    emit_error "--only requiere una lista de componentes no vacía."
+    return 1
+  fi
+
+  local IFS=','
+  for c in $list; do
+    case "$c" in
+      agents|commands|skills|agents-md|config|cli|all) ;;
+      *)
+        emit_error "Componente desconocido para --only: '$c'."
+        emit_error "Valores válidos: agents,commands,skills,agents-md,config,cli,all"
+        return 1
+        ;;
+    esac
+  done
+  return 0
+}
+
+component_selected() {
+  local name="$1"
+  local c
+
+  if [[ -z "$ONLY_COMPONENTS" ]]; then
+    return 0
+  fi
+
+  local IFS=','
+  for c in $ONLY_COMPONENTS; do
+    if [[ "$c" == "all" || "$c" == "$name" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+# ------------------------------------------------------------------------------
+# JSON merge helpers (opencode.json / cli.json)
+# ------------------------------------------------------------------------------
+# Devuelve: jq | python3 | (vacío si no hay herramienta)
+detect_json_tool() {
+  if command -v jq >/dev/null 2>&1; then
+    printf 'jq'
+  elif command -v python3 >/dev/null 2>&1; then
+    printf 'python3'
+  else
+    printf ''
+  fi
+}
+
+# Elimina el bloque 'mcp' de un JSON instalado (usado con --no-mcp en copias planas)
+strip_mcp_block() {
+  local file="$1"
+
+  [[ "$NO_MCP" == true ]] || return 0
+  [[ -f "$file" ]] || return 0
+
+  if [[ "$DRY_RUN" == true ]]; then
+    emit_info "DRY-RUN: eliminar bloque 'mcp' de '$file'"
+    return 0
+  fi
+
+  local tool
+  tool="$(detect_json_tool)"
+
+  if [[ "$tool" == "jq" ]]; then
+    local tmp_file
+    tmp_file="$(mktemp)"
+    if jq 'del(.mcp)' "$file" > "$tmp_file" 2>/dev/null; then
+      cp "$tmp_file" "$file"
+      emit_info "Bloque 'mcp' eliminado de '$file' (--no-mcp)."
+    else
+      emit_warn "No se pudo eliminar el bloque 'mcp' de '$file'."
+    fi
+    rm -f "$tmp_file"
+  elif [[ "$tool" == "python3" ]]; then
+    if python3 - "$file" <<'PYEOF'
+import json, sys
+path = sys.argv[1]
+with open(path, encoding="utf-8") as f:
+    data = json.load(f)
+data.pop("mcp", None)
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(data, f, indent=2, ensure_ascii=False)
+    f.write("\n")
+PYEOF
+    then
+      emit_info "Bloque 'mcp' eliminado de '$file' (--no-mcp)."
+    else
+      emit_warn "No se pudo eliminar el bloque 'mcp' de '$file'."
+    fi
+  else
+    emit_warn "--no-mcp: no se pudo eliminar el bloque 'mcp' (falta jq/python3)."
+  fi
+  return 0
+}
+
+# Merge con jq. El token se lee SIEMPRE desde $ENV (nunca por argv, para no
+# exponerlo en `ps`). stdout: JSON fusionado. Fallo (exit != 0) => JSON corrupto.
+jq_merge_json() {
+  local template_file="$1"
+  local user_file="$2"
+  local mode="$3"
+  local no_mcp_json="false"
+  if [[ "$NO_MCP" == true ]]; then no_mcp_json="true"; fi
+
+  if [[ "$mode" == "user-wins" ]]; then
+    jq -n --slurpfile t "$template_file" --slurpfile u "$user_file" \
+      '$t[0] * $u[0]'
+    return $?
+  fi
+
+  jq -n --argjson no_mcp "$no_mcp_json" \
+        --slurpfile t "$template_file" \
+        --slurpfile u "$user_file" '
+    ($u[0]) as $user | ($t[0]) as $template |
+    ($ENV.GITHUB_PERSONAL_ACCESS_TOKEN // "") as $token |
+    "GITHUB_PERSONAL_ACCESS_TOKEN" as $placeholder |
+    ($user * $template)
+    | if ($user | has("plugins")) or ($template | has("plugins")) then
+        .plugins = ((($user.plugins // []) + ((($template.plugins // []) - ($user.plugins // [])))))
+      else . end
+    | if ($user | has("mcp")) or ($template | has("mcp")) then
+        .mcp = (
+          (($user.mcp // {}).servers // {}) as $us |
+          (($template.mcp // {}).servers // {}) as $ts |
+          (($user.mcp // {}) * ($template.mcp // {}))
+          | .servers = (
+              $us * $ts
+              | if ($ts | has("github")) then
+                  .github = (
+                    (($us.github // {}).env // {}) as $ugen |
+                    ($ugen[$placeholder] // "") as $curtok |
+                    $ts.github
+                    | .env = ((.env // {}) *
+                        (if ($curtok != "" and $curtok != $placeholder)
+                         then {($placeholder): $curtok} else {} end))
+                    | if $token != "" then
+                        .env = ((.env // {}) * {($placeholder): $token})
+                      else . end
+                  )
+                else . end
+            )
+        )
+      else . end
+    | if $no_mcp then del(.mcp) else . end
+  '
+}
+
+# Merge con python3 (fallback). Mismas semánticas que jq_merge_json.
+python3_merge_json() {
+  local template_file="$1"
+  local user_file="$2"
+  local mode="$3"
+  local out_file="$4"
+  local no_mcp_arg="false"
+  if [[ "$NO_MCP" == true ]]; then no_mcp_arg="true"; fi
+
+  python3 - "$template_file" "$user_file" "$mode" "$out_file" "$no_mcp_arg" <<'PYEOF'
+import copy
+import json
+import os
+import sys
+
+template_path, user_path, mode, out_path, no_mcp_arg = sys.argv[1:6]
+no_mcp = no_mcp_arg == "true"
+PLACEHOLDER = "GITHUB_PERSONAL_ACCESS_TOKEN"
+token = os.environ.get(PLACEHOLDER, "")
+
+with open(template_path, encoding="utf-8") as f:
+    template = json.load(f)
+with open(user_path, encoding="utf-8") as f:
+    user = json.load(f)
+
+
+def deep_merge(base, override):
+    result = copy.deepcopy(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(result.get(key), dict):
+            result[key] = deep_merge(result[key], value)
+        else:
+            result[key] = copy.deepcopy(value)
+    return result
+
+
+if mode == "user-wins":
+    merged = deep_merge(template, user)
+else:
+    merged = deep_merge(user, template)
+    if "plugins" in user or "plugins" in template:
+        user_plugins = user.get("plugins") or []
+        tpl_plugins = template.get("plugins") or []
+        merged["plugins"] = user_plugins + [
+            p for p in tpl_plugins if p not in user_plugins
+        ]
+    if "mcp" in user or "mcp" in template:
+        user_mcp = user.get("mcp") or {}
+        tpl_mcp = template.get("mcp") or {}
+        merged_mcp = deep_merge(user_mcp, tpl_mcp)
+        user_servers = user_mcp.get("servers") or {}
+        tpl_servers = tpl_mcp.get("servers") or {}
+        servers = deep_merge(user_servers, tpl_servers)
+        if "github" in tpl_servers:
+            user_env = (user_servers.get("github") or {}).get("env") or {}
+            curtok = user_env.get(PLACEHOLDER, "")
+            tpl_github = copy.deepcopy(tpl_servers["github"])
+            env = tpl_github.get("env") or {}
+            if curtok and curtok != PLACEHOLDER:
+                env[PLACEHOLDER] = curtok
+            if token:
+                env[PLACEHOLDER] = token
+            tpl_github["env"] = env
+            servers["github"] = tpl_github
+        merged_mcp["servers"] = servers
+        merged["mcp"] = merged_mcp
+
+if no_mcp:
+    merged.pop("mcp", None)
+
+with open(out_path, "w", encoding="utf-8") as f:
+    json.dump(merged, f, indent=2, ensure_ascii=False)
+    f.write("\n")
+PYEOF
+}
+
+# Instala un JSON de plantilla con merge no destructivo sobre el del usuario.
+# mode: template-wins (opencode.json) | user-wins (cli.json)
+merge_install_json() {
+  local template_file="$1"
+  local dest_file="$2"
+  local mode="$3"
+  local label="$4"
+
+  [[ -f "$template_file" ]] || return 0
+
+  if [[ "$DRY_RUN" == true ]]; then
+    local extra=""
+    if [[ "$NO_MCP" == true && "$mode" == "template-wins" ]]; then
+      extra=" sin bloque 'mcp'"
+    fi
+    emit_info "DRY-RUN: merge no destructivo ($mode${extra}) '$template_file' -> '$dest_file'"
+    return 0
+  fi
+
+  if [[ ! -f "$dest_file" ]]; then
+    cp "$template_file" "$dest_file"
+    if [[ "$mode" == "template-wins" ]]; then
+      strip_mcp_block "$dest_file"
+    fi
+    emit_ok "$label instalado (no existía configuración previa)."
+    return 0
+  fi
+
+  local tool
+  tool="$(detect_json_tool)"
+
+  if [[ -z "$tool" ]]; then
+    emit_warn "No se encontró jq ni python3; no es posible el merge no destructivo de $label."
+    emit_warn "Se copiará la plantilla de forma plana (sobrescribe '$dest_file')."
+    cp "$template_file" "$dest_file"
+    if [[ "$mode" == "template-wins" ]]; then
+      strip_mcp_block "$dest_file"
+    fi
+    return 0
+  fi
+
+  local tmp_file
+  local merged_ok=false
+  tmp_file="$(mktemp)"
+
+  if [[ "$tool" == "jq" ]]; then
+    if jq_merge_json "$template_file" "$dest_file" "$mode" > "$tmp_file" 2>/dev/null; then
+      merged_ok=true
+    fi
+  else
+    if python3_merge_json "$template_file" "$dest_file" "$mode" "$tmp_file" >/dev/null 2>&1; then
+      merged_ok=true
+    fi
+  fi
+
+  if [[ "$merged_ok" == true ]]; then
+    cp "$tmp_file" "$dest_file"
+    emit_ok "Merge no destructivo aplicado a $label (se conservó tu configuración)."
+  else
+    emit_warn "$label existente no se pudo parsear/fusionar (¿JSON corrupto?)."
+    if [[ "$AUTO_ACCEPT" == true ]]; then
+      cp "$template_file" "$dest_file"
+      if [[ "$mode" == "template-wins" ]]; then
+        strip_mcp_block "$dest_file"
+      fi
+      emit_warn "$label sobrescrito con la plantilla debido a --yes."
+    else
+      emit_warn "Se abortó la escritura de $label para no perder tu configuración."
+      emit_warn "Corrige el JSON manualmente o re-ejecuta con --yes para sobrescribir."
+    fi
+  fi
+
+  rm -f "$tmp_file"
+  return 0
+}
+
+# Aviso post-instalación si el token de GitHub MCP quedó como placeholder.
+# Nunca imprime el valor real del token.
+check_github_token_placeholder() {
+  local file="$1"
+
+  [[ -f "$file" ]] || return 0
+  [[ "$DRY_RUN" == true ]] && return 0
+
+  local tok=""
+  local tool
+  tool="$(detect_json_tool)"
+
+  if [[ "$tool" == "jq" ]]; then
+    tok="$(jq -r '.mcp.servers.github.env.GITHUB_PERSONAL_ACCESS_TOKEN // ""' "$file" 2>/dev/null || true)"
+  elif [[ "$tool" == "python3" ]]; then
+    tok="$(python3 -c '
+import json, sys
+try:
+    with open(sys.argv[1], encoding="utf-8") as f:
+        d = json.load(f)
+    print(d.get("mcp", {}).get("servers", {}).get("github", {}).get("env", {}).get("GITHUB_PERSONAL_ACCESS_TOKEN", "") or "")
+except Exception:
+    pass
+' "$file" 2>/dev/null || true)"
+  else
+    return 0
+  fi
+
+  if [[ "$tok" == "GITHUB_PERSONAL_ACCESS_TOKEN" ]]; then
+    emit_warn "El token de GitHub MCP no está configurado (quedó el placeholder literal)."
+    emit_warn "Para configurarlo: export GITHUB_PERSONAL_ACCESS_TOKEN=<tu-token> y re-ejecuta con --global."
+    emit_warn "El token nunca se acepta como flag ni se imprime en los logs."
+  elif [[ -n "$tok" ]]; then
+    emit_ok "Token de GitHub MCP configurado (valor no mostrado)."
+  fi
+  return 0
 }
 
 backup_directory_if_needed() {
@@ -526,11 +929,44 @@ run_doctor() {
     emit_info "OpenCode Terminal no está instalado" "doctor"
   fi
 
-  if [[ -d "$HOME/.config/opencode" ]]; then
-    emit_info "Existe configuración global en '$HOME/.config/opencode'" "doctor"
+  if [[ -d "$CONFIG_DIR" ]]; then
+    if [[ -n "${XDG_CONFIG_HOME:-}" ]]; then
+      emit_info "XDG_CONFIG_HOME está en uso; configuración global en '$CONFIG_DIR'" "doctor"
+    fi
+    emit_info "Existe configuración global en '$CONFIG_DIR'" "doctor"
   else
-    emit_info "No existe configuración global instalada aún" "doctor"
+    emit_info "No existe configuración global instalada aún ('$CONFIG_DIR')" "doctor"
   fi
+
+  if command -v npx >/dev/null 2>&1; then
+    emit_ok "npx disponible (requerido por el servidor MCP de GitHub)" "doctor"
+  else
+    emit_warn "npx no está instalado; el servidor MCP de GitHub (npx -y @modelcontextprotocol/server-github) no podrá iniciarse" "doctor"
+  fi
+
+  if [[ -f "$CONFIG_DIR/cli.json" ]]; then
+    local json_tool
+    json_tool="$(detect_json_tool)"
+    local cli_ok=false
+    if [[ "$json_tool" == "jq" ]]; then
+      jq empty "$CONFIG_DIR/cli.json" >/dev/null 2>&1 && cli_ok=true
+    elif [[ "$json_tool" == "python3" ]]; then
+      python3 -c 'import json,sys; json.load(open(sys.argv[1], encoding="utf-8"))' \
+        "$CONFIG_DIR/cli.json" >/dev/null 2>&1 && cli_ok=true
+    else
+      cli_ok=true  # sin herramienta: no se puede validar, se asume ok
+      emit_warn "No se encontró jq ni python3; no se pudo validar el parseo de cli.json" "doctor"
+    fi
+    if [[ "$cli_ok" == true ]]; then
+      emit_ok "cli.json existe y parsea correctamente" "doctor"
+    else
+      emit_warn "cli.json existe pero NO parsea (¿JSON corrupto?)" "doctor"
+    fi
+  else
+    emit_info "cli.json no está instalado en '$CONFIG_DIR'" "doctor"
+  fi
+
+  check_github_token_placeholder "$CONFIG_DIR/opencode.json"
 
   local pkg_type
   pkg_type="$(detect_desktop_package_type)"
@@ -638,14 +1074,33 @@ install_global() {
 
   ensure_source_layout
 
-  local dest_dir="$HOME/.config/opencode"
+  local dest_dir="$CONFIG_DIR"
+
+  if [[ -n "$ONLY_COMPONENTS" ]]; then
+    emit_info "Instalación por componentes: $ONLY_COMPONENTS" "global"
+  fi
 
   backup_directory_if_needed "$dest_dir"
   safe_mkdir "$dest_dir"
 
-  copy_file_if_exists "$GLOBAL_SOURCE/AGENTS.md" "$dest_dir/"
-  copy_file_if_exists "$GLOBAL_SOURCE/opencode.json" "$dest_dir/"
-  copy_file_if_exists "$GLOBAL_SOURCE/cli.json" "$dest_dir/"
+  # AGENTS.md (componentes: agents-md o config)
+  if component_selected "agents-md" || component_selected "config"; then
+    copy_file_if_exists "$GLOBAL_SOURCE/AGENTS.md" "$dest_dir/"
+  fi
+
+  # opencode.json con merge no destructivo (template gana en claves compartidas;
+  # el usuario conserva claves exclusivas, sus servers MCP y su token real)
+  if component_selected "config"; then
+    merge_install_json "$GLOBAL_SOURCE/opencode.json" "$dest_dir/opencode.json" \
+      "template-wins" "opencode.json"
+  fi
+
+  # cli.json con merge no destructivo (el usuario gana: preferencias personales;
+  # el template solo añade claves ausentes)
+  if component_selected "cli"; then
+    merge_install_json "$GLOBAL_SOURCE/cli.json" "$dest_dir/cli.json" \
+      "user-wins" "cli.json"
+  fi
 
   # Copy contents of .opencode/ directly (agents/, commands/, skills/, etc.)
   # so they end up at the same level as AGENTS.md and opencode.json
@@ -653,12 +1108,30 @@ install_global() {
     for _entry in "$GLOBAL_SOURCE/.opencode"/* "$GLOBAL_SOURCE/.opencode"/.*; do
       _basename="$(basename "$_entry")"
       [[ "$_basename" = "." || "$_basename" = ".." ]] && continue
+      [[ -e "$_entry" ]] || continue
+      case "$_basename" in
+        agents) component_selected "agents" || continue ;;
+        commands) component_selected "commands" || continue ;;
+        skills) component_selected "skills" || continue ;;
+        *)
+          # Entradas no mapeadas a un componente: solo en modo completo
+          if [[ -n "$ONLY_COMPONENTS" ]]; then
+            emit_info "Componente '$_basename' omitido (no cubierto por --only; usa 'all' para incluirlo)." "global"
+            continue
+          fi
+          ;;
+      esac
       if [[ -d "$_entry" ]]; then
         copy_dir_contents_if_exists "$_entry" "$dest_dir/"
       elif [[ -f "$_entry" ]]; then
         copy_file_if_exists "$_entry" "$dest_dir/"
       fi
     done
+  fi
+
+  # Aviso si el token de GitHub MCP quedó como placeholder (nunca imprime el valor)
+  if component_selected "config" && [[ "$NO_MCP" != true ]]; then
+    check_github_token_placeholder "$dest_dir/opencode.json"
   fi
 
   emit_ok "Plantilla global instalada en '$dest_dir'." "global"
@@ -779,7 +1252,7 @@ install_i_have_adhd() {
 
   require_cmd git
 
-  local config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/opencode"
+  local config_dir="$CONFIG_DIR"
   local vendor_dir="$config_dir/vendor/i-have-adhd"
   local plugin_rel="./vendor/i-have-adhd/.opencode/plugins/i-have-adhd.mjs"
   local config_file="$config_dir/opencode.json"
@@ -836,6 +1309,314 @@ install_i_have_adhd() {
 }
 
 # ------------------------------------------------------------------------------
+# Restore / Uninstall
+# ------------------------------------------------------------------------------
+# Lista los backups globales (<CONFIG_DIR>_backup_<ts>) ordenados por timestamp.
+list_global_backups() {
+  local parent base b
+  parent="$(dirname "$CONFIG_DIR")"
+  base="$(basename "$CONFIG_DIR")"
+  for b in "$parent/${base}_backup_"*; do
+    if [[ -d "$b" ]]; then printf '%s\n' "$b"; fi
+  done | sort
+  return 0
+}
+
+# Resuelve el backup a usar: "latest" o un <ts> concreto. Imprime la ruta.
+resolve_global_backup() {
+  local want="${1:-latest}"
+  local backups
+  backups="$(list_global_backups)"
+
+  if [[ -z "$backups" ]]; then
+    return 1
+  fi
+
+  if [[ "$want" == "latest" ]]; then
+    printf '%s\n' "$backups" | tail -n1
+    return 0
+  fi
+
+  local parent base candidate
+  parent="$(dirname "$CONFIG_DIR")"
+  base="$(basename "$CONFIG_DIR")"
+  candidate="$parent/${base}_backup_${want}"
+  if [[ -d "$candidate" ]]; then
+    printf '%s\n' "$candidate"
+    return 0
+  fi
+  return 1
+}
+
+# Sustituye CONFIG_DIR por el contenido del backup indicado (con copia de
+# seguridad previa del estado actual). Respeta dry-run y confirmación.
+apply_global_restore() {
+  local backup_path="$1"
+
+  if [[ "$DRY_RUN" == true ]]; then
+    emit_info "DRY-RUN: cp -r '$CONFIG_DIR' '${CONFIG_DIR}_pre_restore_<ts>' (copia de seguridad del estado actual)" "restore"
+    emit_info "DRY-RUN: rm -rf '$CONFIG_DIR'" "restore"
+    emit_info "DRY-RUN: cp -r '$backup_path' '$CONFIG_DIR'" "restore"
+    return 0
+  fi
+
+  if [[ -d "$CONFIG_DIR" ]] && [[ -n "$(ls -A "$CONFIG_DIR" 2>/dev/null || true)" ]]; then
+    local safety_path="${CONFIG_DIR}_pre_restore_$(timestamp_now)"
+    cp -r "$CONFIG_DIR" "$safety_path"
+    emit_info "Copia de seguridad del estado actual en '$safety_path'." "restore"
+  fi
+
+  rm -rf "$CONFIG_DIR"
+  cp -r "$backup_path" "$CONFIG_DIR"
+  return 0
+}
+
+restore_global_backup() {
+  local want="${1:-latest}"
+
+  emit_step "Restaurando configuración global desde backup" "restore"
+
+  local backup_path
+  if ! backup_path="$(resolve_global_backup "$want")"; then
+    emit_error "No se encontró ningún backup global '${CONFIG_DIR}_backup_<ts>'$( [[ "$want" != "latest" ]] && printf " con timestamp '%s'" "$want" )."
+    local available
+    available="$(list_global_backups)"
+    if [[ -n "$available" ]]; then
+      emit_info "Backups disponibles:" "restore"
+      while IFS= read -r b; do
+        emit_info "  $(basename "$b")" "restore"
+      done <<< "$available"
+    fi
+    record_summary_step "restore" "error"
+    exit 41
+  fi
+
+  emit_info "Backup seleccionado: '$backup_path'" "restore"
+
+  if ! confirm "¿Restaurar '$backup_path' sobre '$CONFIG_DIR'? La configuración actual será reemplazada (se guardará una copia previa)."; then
+    emit_warn "Restauración cancelada." "restore"
+    record_summary_step "restore" "skipped"
+    return 0
+  fi
+
+  apply_global_restore "$backup_path"
+
+  emit_ok "Configuración global restaurada desde '$backup_path'." "restore"
+  record_summary_step "restore" "ok"
+}
+
+# Lista (una por línea) los elementos relativos que la plantilla instala en CONFIG_DIR
+collect_global_installed_items() {
+  local f entry base
+  for f in AGENTS.md opencode.json cli.json; do
+    if [[ -f "$GLOBAL_SOURCE/$f" ]]; then printf '%s\n' "$f"; fi
+  done
+  if [[ -d "$GLOBAL_SOURCE/.opencode" ]]; then
+    for entry in "$GLOBAL_SOURCE/.opencode"/* "$GLOBAL_SOURCE/.opencode"/.*; do
+      base="$(basename "$entry")"
+      if [[ "$base" == "." || "$base" == ".." ]]; then continue; fi
+      [[ -e "$entry" ]] || continue
+      printf '%s\n' "$base"
+    done
+  fi
+  return 0
+}
+
+# Elimina una entrada del array "plugins" de un opencode.json (jq o python3).
+unregister_plugin_entry() {
+  local config_file="$1"
+  local plugin_entry="$2"
+
+  [[ -f "$config_file" ]] || return 0
+
+  local tool
+  tool="$(detect_json_tool)"
+
+  if [[ "$tool" == "jq" ]]; then
+    # No reescribir si la entrada no existe (evita cambios de formato innecesarios)
+    if ! jq -e --arg p "$plugin_entry" '((.plugins // []) | index($p)) != null' \
+      "$config_file" >/dev/null 2>&1; then
+      return 0
+    fi
+    local tmp_file
+    tmp_file="$(mktemp)"
+    if jq --arg p "$plugin_entry" \
+      'if has("plugins") then .plugins = ((.plugins // []) - [$p]) | (if (.plugins | length) == 0 then del(.plugins) else . end) else . end' \
+      "$config_file" > "$tmp_file" 2>/dev/null; then
+      cp "$tmp_file" "$config_file"
+      rm -f "$tmp_file"
+      return 0
+    fi
+    rm -f "$tmp_file"
+  elif [[ "$tool" == "python3" ]]; then
+    if python3 - "$config_file" "$plugin_entry" <<'PYEOF'
+import json, sys
+path, entry = sys.argv[1], sys.argv[2]
+with open(path, encoding="utf-8") as f:
+    data = json.load(f)
+plugins = data.get("plugins") or []
+if entry not in plugins:
+    sys.exit(0)  # nada que revertir: no reescribir el archivo
+plugins.remove(entry)
+if plugins:
+    data["plugins"] = plugins
+else:
+    data.pop("plugins", None)
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(data, f, indent=2, ensure_ascii=False)
+    f.write("\n")
+PYEOF
+    then
+      return 0
+    fi
+  fi
+  return 1
+}
+
+# Borra el vendor i-have-adhd y revierte su entrada en plugins (tras confirmación
+# del flujo principal). Respeta dry-run.
+cleanup_vendor_plugin() {
+  local config_dir="$1"
+  local vendor_dir="$config_dir/vendor/i-have-adhd"
+  local plugin_rel="./vendor/i-have-adhd/.opencode/plugins/i-have-adhd.mjs"
+  local config_file="$config_dir/opencode.json"
+
+  if [[ -d "$vendor_dir" ]]; then
+    if [[ "$DRY_RUN" == true ]]; then
+      emit_info "DRY-RUN: rm -rf '$vendor_dir'" "uninstall"
+    else
+      rm -rf "$vendor_dir"
+      emit_ok "Vendor i-have-adhd eliminado ('$vendor_dir')." "uninstall"
+    fi
+  fi
+
+  if [[ -f "$config_file" ]]; then
+    if [[ "$DRY_RUN" == true ]]; then
+      emit_info "DRY-RUN: revertir entrada '$plugin_rel' en 'plugins' de '$config_file'" "uninstall"
+    elif unregister_plugin_entry "$config_file" "$plugin_rel"; then
+      emit_ok "Entrada de plugin i-have-adhd revertida en '$config_file'." "uninstall"
+    else
+      emit_warn "No se pudo revertir la entrada de plugin en '$config_file' automáticamente." "uninstall"
+    fi
+  fi
+  return 0
+}
+
+uninstall_global() {
+  emit_step "Desinstalando configuración global" "uninstall"
+
+  ensure_source_layout
+
+  local backups backup_path=""
+  backups="$(list_global_backups)"
+
+  if [[ -n "$backups" ]]; then
+    backup_path="$(printf '%s\n' "$backups" | tail -n1)"
+    emit_info "Backup más reciente encontrado: '$backup_path'. Se restaurará como estado anterior." "uninstall"
+
+    if ! confirm "¿Restaurar '$backup_path' sobre '$CONFIG_DIR' y eliminar el vendor i-have-adhd?"; then
+      emit_warn "Desinstalación cancelada." "uninstall"
+      record_summary_step "uninstall" "skipped"
+      return 0
+    fi
+
+    apply_global_restore "$backup_path"
+    emit_ok "Configuración global restaurada al estado del backup." "uninstall"
+  else
+    emit_warn "No existen backups globales. Se eliminarán solo los archivos instalados por la plantilla." "uninstall"
+
+    local items item found_any=false
+    items="$(collect_global_installed_items)"
+
+    emit_info "Archivos/carpetas de la plantilla presentes en '$CONFIG_DIR':" "uninstall"
+    while IFS= read -r item; do
+      [[ -n "$item" ]] || continue
+      if [[ -e "$CONFIG_DIR/$item" ]]; then
+        emit_info "  $item" "uninstall"
+        found_any=true
+      fi
+    done <<< "$items"
+
+    if [[ "$found_any" != true ]]; then
+      emit_info "No se encontró ningún archivo de la plantilla en '$CONFIG_DIR'." "uninstall"
+    fi
+
+    if ! confirm "¿Eliminar estos elementos de '$CONFIG_DIR', junto con el vendor i-have-adhd y su entrada en 'plugins'?"; then
+      emit_warn "Desinstalación cancelada." "uninstall"
+      record_summary_step "uninstall" "skipped"
+      return 0
+    fi
+
+    # Borrado selectivo: NUNCA rm -rf del directorio completo
+    while IFS= read -r item; do
+      [[ -n "$item" ]] || continue
+      local target_path="$CONFIG_DIR/$item"
+      if [[ ! -e "$target_path" ]]; then
+        continue
+      fi
+      if [[ "$DRY_RUN" == true ]]; then
+        emit_info "DRY-RUN: rm -rf '$target_path'" "uninstall"
+      elif [[ -d "$target_path" ]]; then
+        rm -rf "$target_path"
+        emit_ok "Eliminado '$target_path'." "uninstall"
+      else
+        rm -f "$target_path"
+        emit_ok "Eliminado '$target_path'." "uninstall"
+      fi
+    done <<< "$items"
+  fi
+
+  cleanup_vendor_plugin "$CONFIG_DIR"
+
+  emit_ok "Desinstalación global completada." "uninstall"
+  record_summary_step "uninstall" "ok"
+}
+
+uninstall_project() {
+  local target_path="${1:-.}"
+
+  emit_step "Desinstalando plantilla local del proyecto" "uninstall"
+
+  local target_dir
+  target_dir="$(resolve_target_dir "$target_path")"
+
+  local backup_dir="" d
+  for d in "$target_dir"/.opencode_backup_*; do
+    # orden alfabético => el último es el más reciente
+    if [[ -d "$d" ]]; then backup_dir="$d"; fi
+  done
+
+  if [[ -z "$backup_dir" ]]; then
+    emit_error "No se encontró ningún backup '.opencode_backup_<ts>' en '$target_dir'."
+    emit_error "Instala/sincroniza primero con backup, o elimina manualmente opencode.json, AGENTS.md y .opencode/."
+    record_summary_step "uninstall" "error"
+    exit 41
+  fi
+
+  emit_info "Backup más reciente del proyecto: '$backup_dir'" "uninstall"
+
+  if ! confirm "¿Restaurar '$backup_dir' en '$target_dir' (reemplaza opencode.json, AGENTS.md y .opencode/)?"; then
+    emit_warn "Desinstalación del proyecto cancelada." "uninstall"
+    record_summary_step "uninstall" "skipped"
+    return 0
+  fi
+
+  if [[ "$DRY_RUN" == true ]]; then
+    emit_info "DRY-RUN: rm -rf '$target_dir/.opencode'" "uninstall"
+    emit_info "DRY-RUN: rm -f '$target_dir/opencode.json' '$target_dir/AGENTS.md'" "uninstall"
+    emit_info "DRY-RUN: cp -r '$backup_dir'/. '$target_dir/'" "uninstall"
+  else
+    # Solo se eliminan los elementos gestionados por la plantilla (nunca el proyecto entero)
+    rm -rf "$target_dir/.opencode"
+    rm -f "$target_dir/opencode.json" "$target_dir/AGENTS.md"
+    cp -r "$backup_dir"/. "$target_dir"/
+  fi
+
+  emit_ok "Plantilla local revertida al estado del backup en '$target_dir'." "uninstall"
+  record_summary_step "uninstall" "ok"
+}
+
+# ------------------------------------------------------------------------------
 # Interactive menu (optional only)
 # ------------------------------------------------------------------------------
 interactive_menu() {
@@ -846,17 +1627,33 @@ interactive_menu() {
     echo "=== Menú de Instalación de OpenCode y Plantillas ==="
     echo "1) Instalar/Actualizar OpenCode Terminal"
     echo "2) Instalar/Actualizar OpenCode Desktop"
-    echo "3) Instalar Configuración Global (~/.config/opencode)"
+    echo "3) Instalar Configuración Global ($CONFIG_DIR)"
     echo "4) Inicializar Plantilla en un Proyecto Local"
     echo "5) Ejecutar diagnóstico (doctor)"
     echo "6) Instalar todo (Terminal + Desktop + Global + Proyecto local en '.')"
-    echo "7) Salir"
+    echo "7) Restaurar configuración global desde backup (--restore)"
+    echo "8) Desinstalar configuración global (--uninstall)"
+    echo "9) Desinstalar plantilla de un proyecto (--project <ruta> --uninstall)"
+    echo "10) Salir"
 
-    read -r -p "Seleccione una opción [1-7]: " opt
+    read -r -p "Seleccione una opción [1-10]: " opt
     case "$opt" in
       1) install_terminal ;;
       2) install_desktop ;;
-      3) install_global ;;
+      3)
+        read -r -p "Componentes a instalar (agents,commands,skills,agents-md,config,cli; Enter para todos): " only_input
+        if [[ -n "$only_input" ]]; then
+          if validate_only_components "$only_input"; then
+            ONLY_COMPONENTS="$only_input"
+          else
+            continue
+          fi
+        else
+          ONLY_COMPONENTS=""
+        fi
+        install_global
+        ONLY_COMPONENTS=""
+        ;;
       4)
         read -r -p "Ingrese la ruta del proyecto (Enter para '.'): " proj_path
         proj_path="${proj_path:-.}"
@@ -870,6 +1667,25 @@ interactive_menu() {
         install_project "."
         ;;
       7)
+        local_backups="$(list_global_backups)"
+        if [[ -z "$local_backups" ]]; then
+          emit_error "No hay backups globales disponibles (${CONFIG_DIR}_backup_<ts>)."
+          continue
+        fi
+        echo "Backups disponibles:"
+        printf '%s\n' "$local_backups" | while IFS= read -r b; do
+          echo "  $(basename "$b")"
+        done
+        read -r -p "Timestamp a restaurar (Enter para el más reciente): " restore_ts
+        restore_global_backup "${restore_ts:-latest}"
+        ;;
+      8) uninstall_global ;;
+      9)
+        read -r -p "Ingrese la ruta del proyecto (Enter para '.'): " proj_path
+        proj_path="${proj_path:-.}"
+        uninstall_project "$proj_path"
+        ;;
+      10)
         emit_info "Saliendo del instalador."
         exit 0
         ;;
@@ -924,6 +1740,35 @@ parse_args() {
         ;;
       --global)
         INSTALL_GLOBAL=true
+        shift
+        ;;
+      --only)
+        if [[ -z "${2:-}" || "${2:-}" == -* ]]; then
+          emit_error "Debes indicar una lista de componentes para --only (agents,commands,skills,agents-md,config,cli,all)."
+          exit 40
+        fi
+        if ! validate_only_components "$2"; then
+          exit 40
+        fi
+        ONLY_COMPONENTS="$2"
+        shift 2
+        ;;
+      --no-mcp)
+        NO_MCP=true
+        shift
+        ;;
+      --restore)
+        RESTORE_REQUESTED=true
+        if [[ -n "${2:-}" && "${2:-}" != -* ]]; then
+          RESTORE_TARGET="$2"
+          shift 2
+        else
+          RESTORE_TARGET="latest"
+          shift
+        fi
+        ;;
+      --uninstall)
+        UNINSTALL=true
         shift
         ;;
       --with-i-have-adhd)
@@ -993,6 +1838,17 @@ parse_args() {
         ;;
     esac
   done
+
+  # Validaciones cruzadas
+  if [[ -n "$ONLY_COMPONENTS" && "$INSTALL_GLOBAL" != true ]]; then
+    emit_error "--only solo puede usarse junto a --global."
+    exit 40
+  fi
+
+  if [[ "$RESTORE_REQUESTED" == true && "$UNINSTALL" == true ]]; then
+    emit_error "--restore y --uninstall no pueden combinarse en la misma ejecución."
+    exit 40
+  fi
 }
 
 # ------------------------------------------------------------------------------
@@ -1014,6 +1870,8 @@ main() {
      [[ "$INSTALL_PROJECT" == false ]] && \
      [[ "$INSTALL_SYNC" == false ]] && \
      [[ "$INSTALL_I_HAVE_ADHD" == false ]] && \
+     [[ "$RESTORE_REQUESTED" == false ]] && \
+     [[ "$UNINSTALL" == false ]] && \
      [[ "$RUN_DOCTOR" == false ]]; then
     interactive_menu
     exit 0
@@ -1025,6 +1883,8 @@ main() {
      [[ "$INSTALL_PROJECT" == false ]] && \
      [[ "$INSTALL_SYNC" == false ]] && \
      [[ "$INSTALL_I_HAVE_ADHD" == false ]] && \
+     [[ "$RESTORE_REQUESTED" == false ]] && \
+     [[ "$UNINSTALL" == false ]] && \
      [[ "$RUN_DOCTOR" == false ]]; then
     # Sin parámetros: mostrar menú interactivo por defecto
     interactive_menu
@@ -1036,10 +1896,22 @@ main() {
   [[ "$RUN_DOCTOR" == true ]] && run_doctor
   [[ "$INSTALL_TERMINAL" == true ]] && install_terminal
   [[ "$INSTALL_DESKTOP" == true ]] && install_desktop
-  [[ "$INSTALL_GLOBAL" == true ]] && install_global
-  [[ "$INSTALL_PROJECT" == true ]] && install_project "${PROJECT_PATH:-.}"
-  [[ "$INSTALL_SYNC" == true ]] && sync_project "${PROJECT_PATH:-.}"
-  [[ "$INSTALL_I_HAVE_ADHD" == true ]] && install_i_have_adhd
+
+  # --restore / --uninstall tienen prioridad sobre la instalación equivalente
+  if [[ "$RESTORE_REQUESTED" == true ]]; then
+    restore_global_backup "$RESTORE_TARGET"
+  elif [[ "$UNINSTALL" == true ]]; then
+    if [[ "$INSTALL_PROJECT" == true ]]; then
+      uninstall_project "${PROJECT_PATH:-.}"
+    else
+      uninstall_global
+    fi
+  else
+    [[ "$INSTALL_GLOBAL" == true ]] && install_global
+    [[ "$INSTALL_PROJECT" == true ]] && install_project "${PROJECT_PATH:-.}"
+    [[ "$INSTALL_SYNC" == true ]] && sync_project "${PROJECT_PATH:-.}"
+    [[ "$INSTALL_I_HAVE_ADHD" == true ]] && install_i_have_adhd
+  fi
 
   emit_summary
   emit_ok "Proceso completado."
