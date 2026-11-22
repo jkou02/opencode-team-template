@@ -1,24 +1,35 @@
 ---
 description: Especialista en análisis y documentación de requisitos funcionales y no funcionales. Úsalo cuando necesites estructurar, validar o refinar requisitos de software.
-
 mode: subagent
-
-temperature: 0.2
-
+model: opencode-go/qwen3.8-flash
 steps: 10
-
 color: "#ff6600"
-
 hidden: false
-
-permission: 
-  read: allow
-  glob: allow
-  grep: allow
-  list: allow
-  lsp: allow
-
-skills: []
+request:
+  body:
+    temperature: 0.2
+permissions:
+  - action: edit
+    resource: "*"
+    effect: ask
+  - action: shell
+    resource: "*"
+    effect: deny
+  - action: shell
+    resource: "git status *"
+    effect: allow
+  - action: shell
+    resource: "git diff *"
+    effect: allow
+  - action: shell
+    resource: "find *"
+    effect: allow
+  - action: shell
+    resource: "ls *"
+    effect: allow
+  - action: subagent
+    resource: "*"
+    effect: deny
 ---
 
 # Analista de Requisitos
