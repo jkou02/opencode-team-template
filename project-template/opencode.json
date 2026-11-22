@@ -21,7 +21,7 @@
 
     "edit": "ask",
     "task": "ask",
-    "skill": "ask",
+    "skill": "allow",
     "webfetch": "ask",
     "websearch": "ask",
     "external_directory": "ask",
