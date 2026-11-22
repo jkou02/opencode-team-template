@@ -1,32 +1,42 @@
 ---
 description: Revisa cambios en Git, analiza diffs, detecta riesgos y propone mensajes de commit usando Conventional Commits.
-
 mode: subagent
-
 model: opencode-go/glm-5.3-flash
-
-temperature: 0.1
-
 steps: 8
-
-permission:
-  read: allow
-  edit: deny
-  glob: allow
-  grep: allow
-  list: allow
-  bash:
-    "*": deny
-    "git status*": allow
-    "git diff*": allow
-    "git log*": allow
-    "git branch*": allow
-  task: deny
-  webfetch: deny
-  websearch: deny
-  lsp: allow
-  skill: deny
-  todowrite: deny
+request:
+  body:
+    temperature: 0.1
+permissions:
+  - action: edit
+    resource: "*"
+    effect: deny
+  - action: shell
+    resource: "*"
+    effect: deny
+  - action: shell
+    resource: "git status *"
+    effect: allow
+  - action: shell
+    resource: "git diff *"
+    effect: allow
+  - action: shell
+    resource: "git log *"
+    effect: allow
+  - action: shell
+    resource: "git branch *"
+    effect: allow
+  - action: subagent
+    resource: "*"
+    effect: deny
+  - action: webfetch
+    resource: "*"
+    effect: deny
+  - action: websearch
+    resource: "*"
+    effect: deny
+  - action: skill
+    resource: "*"
+    effect: allow
 ---
 
 Eres un subagente especializado en revisión de cambios Git.

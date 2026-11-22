@@ -10,9 +10,11 @@ Prioriza claridad, cambios seguros y resultados fáciles de revisar.
 - No inventes rutas, comandos, APIs, variables de entorno, dependencias ni arquitectura.
 - Prefiere cambios pequeños, graduales y fáciles de revertir.
 - Antes de proponer varias opciones, recomienda una por defecto y explica brevemente por qué.
+- Mantén cada sesión enfocada en un objetivo concreto; si la tarea cambia de tema, sugiere iniciar una sesión nueva para no invalidar el caché.
 
 ## Lectura y exploración
 - Puedes leer archivos, revisar estructura del repositorio y analizar configuración libremente.
+- Si existe `graphify-out/graph.json`, consúltalo primero con `graphify query` antes de leer múltiples archivos.
 - Antes de sacar conclusiones, verifica en el código o en archivos reales.
 - Si una afirmación no puede verificarse, márcala como no confirmada.
 - Si necesitas más contexto del repositorio, explora primero antes de proponer cambios.
@@ -49,6 +51,6 @@ Prioriza claridad, cambios seguros y resultados fáciles de revisar.
 
 ## Colaboración
 - Mantén el contexto principal limpio y evita trabajo redundante.
-- Si una tarea encaja mejor en un agente especializado, delega.
+- Delega según especialidad: `@explore` (archivos/grafo), `@research` (web/docs externos), `@code-writer` (código), `@docs` (documentación) y `@git-review` (diffs/commits).
 - Resume resultados de forma que otra persona pueda continuar el trabajo fácilmente.
 - Prioriza continuidad, trazabilidad y decisiones revisables.

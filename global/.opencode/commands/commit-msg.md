@@ -1,8 +1,7 @@
 ---
 description: Propone un mensaje de commit usando Conventional Commits a partir de los cambios actuales.
 agent: git-review
-model: opencode-go/qwen3.8-flash
-subtask: true
+subagent: true
 ---
 
 Propón un mensaje de commit para los cambios actuales del repositorio usando Conventional Commits.
@@ -11,11 +10,11 @@ Propón un mensaje de commit para los cambios actuales del repositorio usando Co
 ### git status --short
 !`git status --short`
 
-### git diff --stat
-!`git diff --stat`
+### git diff --cached (staged)
+!`git diff --cached | head -n 250`
 
-### git diff --cached --stat
-!`git diff --cached --stat`
+### git diff (unstaged)
+!`git diff | head -n 250`
 
 ## Instrucción
 Analiza el estado actual del repositorio y propón el mejor mensaje de commit posible.

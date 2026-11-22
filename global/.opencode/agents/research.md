@@ -1,27 +1,30 @@
 ---
 description: Investiga fuentes externas, documentación técnica y referencias relevantes para apoyar decisiones del equipo con hallazgos claros y verificables.
-
 mode: subagent
-
-model: opencode-go/kimi-k3
-
-temperature: 0.2
-
+model: opencode-go/deepseek-v4.1-flash
 steps: 8
-
-permission:
-  read: allow
-  edit: deny
-  glob: allow
-  grep: allow
-  list: allow
-  bash: deny
-  task: deny
-  webfetch: allow
-  websearch: allow
-  lsp: deny
-  skill: deny
-  todowrite: deny
+request:
+  body:
+    temperature: 0.2
+permissions:
+  - action: edit
+    resource: "*"
+    effect: deny
+  - action: shell
+    resource: "*"
+    effect: deny
+  - action: subagent
+    resource: "*"
+    effect: deny
+  - action: webfetch
+    resource: "*"
+    effect: allow
+  - action: websearch
+    resource: "*"
+    effect: allow
+  - action: skill
+    resource: "*"
+    effect: deny
 ---
 
 Eres un subagente especializado en investigación técnica externa.

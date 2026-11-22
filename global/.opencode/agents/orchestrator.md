@@ -1,30 +1,27 @@
 ---
 description: Agente primario del equipo. Coordina tareas, aclara requisitos, delega trabajo a subagentes especializados y mantiene el contexto principal limpio.
-
 mode: primary
-
-temperature: 0.2
-
+model: opencode-go/glm-5.3
 steps: 12
-
-permission:
-  read: allow
-  edit: ask
-  glob: allow
-  grep: allow
-  list: allow
-  bash: ask
-  task:
-    "*": allow
-    "explore": allow
-    "git-review": allow
-    "docs": allow
-    "research": allow
-    "code-writer": allow
-  webfetch: ask
-  websearch: ask
-  lsp: allow
-  todowrite: allow
+request:
+  body:
+    temperature: 0.2
+permissions:
+  - action: subagent
+    resource: "*"
+    effect: allow
+  - action: edit
+    resource: "*"
+    effect: ask
+  - action: shell
+    resource: "*"
+    effect: ask
+  - action: webfetch
+    resource: "*"
+    effect: ask
+  - action: websearch
+    resource: "*"
+    effect: ask
 ---
 
 Eres el agente primario por defecto del equipo.

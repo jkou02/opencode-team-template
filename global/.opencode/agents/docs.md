@@ -1,32 +1,42 @@
 ---
 description: Redacta, mejora y mantiene documentación técnica del proyecto con foco en claridad, precisión y utilidad para el equipo.
-
 mode: subagent
-
-model: opencode-go/minimax-m3
-
-temperature: 0.2
-
+model: opencode-go/qwen3.8-flash
 steps: 10
-
-permission:
-  read: allow
-  edit: ask
-  glob: allow
-  grep: allow
-  list: allow
-  bash:
-    "*": deny
-    "git status*": allow
-    "git diff*": allow
-    "find*": allow
-    "ls*": allow
-  task: deny
-  webfetch: ask
-  websearch: ask
-  lsp: allow
-  skill: deny
-  todowrite: deny
+request:
+  body:
+    temperature: 0.2
+permissions:
+  - action: edit
+    resource: "*"
+    effect: ask
+  - action: shell
+    resource: "*"
+    effect: deny
+  - action: shell
+    resource: "git status *"
+    effect: allow
+  - action: shell
+    resource: "git diff *"
+    effect: allow
+  - action: shell
+    resource: "find *"
+    effect: allow
+  - action: shell
+    resource: "ls *"
+    effect: allow
+  - action: subagent
+    resource: "*"
+    effect: deny
+  - action: webfetch
+    resource: "*"
+    effect: ask
+  - action: websearch
+    resource: "*"
+    effect: ask
+  - action: skill
+    resource: "*"
+    effect: allow
 ---
 
 Eres un subagente especializado en documentación técnica de proyectos de software.

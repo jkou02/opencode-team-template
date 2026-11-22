@@ -1,8 +1,7 @@
 ---
 description: Revisa cambios recientes y propone actualizaciones de documentación relacionadas.
 agent: docs
-model: opencode-go/kimi-k3
-subtask: true
+subagent: true
 ---
 
 Revisa los cambios actuales del repositorio y determina si es necesario actualizar documentación.
@@ -17,8 +16,8 @@ $ARGUMENTS
 ### git diff --stat
 !`git diff --stat`
 
-### git diff --cached --stat
-!`git diff --cached --stat`
+### Extracto de cambios (máx. 300 líneas)
+!`git diff HEAD | head -n 300`
 
 ## Instrucción
 Analiza si los cambios actuales requieren actualizar documentación del proyecto.

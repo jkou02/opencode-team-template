@@ -1,7 +1,7 @@
 ---
 description: Investiga una pregunta técnica o una referencia externa y devuelve una síntesis accionable.
 agent: research
-subtask: true
+subagent: true
 ---
 
 Investiga la siguiente pregunta o tema técnico:

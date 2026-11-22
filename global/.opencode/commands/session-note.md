@@ -1,7 +1,7 @@
 ---
 description: Genera una nota breve de sesión para registrar progreso, archivos tocados y próximos pasos.
 agent: docs
-subtask: true
+subagent: true
 ---
 
 Genera una nota de sesión útil para retomar el trabajo más adelante o dejar contexto a otra persona.

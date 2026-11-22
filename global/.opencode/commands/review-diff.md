@@ -1,7 +1,7 @@
 ---
 description: Revisa los cambios actuales del repositorio y propone un resumen con riesgos y commit sugerido.
 agent: git-review
-subtask: true
+subagent: true
 ---
 
 Revisa el estado actual del repositorio usando la información disponible y genera una revisión breve de los cambios.
@@ -16,8 +16,11 @@ Revisa el estado actual del repositorio usando la información disponible y gene
 ### git diff --cached --stat
 !`git diff --cached --stat`
 
+### Extracto de cambios (máx. 300 líneas)
+!`git diff HEAD | head -n 300`
+
 ## Instrucción
-Analiza los cambios actuales del repositorio.
+Analiza los cambios actuales del repositorio. Si el diff completo supera el extracto mostrado y necesitas ver un archivo puntual para evaluar riesgos, inspecciónalo antes de concluir.
 
 Entrega tu respuesta con esta estructura:
 - Resumen

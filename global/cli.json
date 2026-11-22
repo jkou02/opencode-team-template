@@ -1,0 +1,44 @@
+{
+  "$schema": "https://opencode.ai/v2/cli.json",
+  "theme": {
+    "name": "carbonfox",
+    "mode": "dark"
+  },
+  "diffs": {
+    "wrap": "word"
+  },
+  "session": {
+    "sidebar": "auto",
+    "scrollbar": true,
+    "thinking": "hide",
+    "markdown": "rendered",
+    "grouping": "auto",
+    "verbosity": "medium",
+    "image_preview": false,
+    "new_location": "launch"
+  },
+  "animations": true,
+  "attention": {
+    "notifications": true,
+    "volume": 0.7999999999999999,
+    "sound": true
+  },
+  "debug": {
+    "devtools": true,
+    "turn_tokens": false,
+    "timing": false
+  },
+  "mouse": true,
+  "scroll": {
+    "acceleration": false
+  },
+  "tabs": {
+    "indicators": "status",
+    "layout": "horizontal",
+    "mode": "auto"
+  },
+  "experimental": {
+    "client-mcp": true,
+    "new-designs": true
+  }
+}
