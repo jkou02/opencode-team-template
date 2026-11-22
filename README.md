@@ -106,7 +106,7 @@ La plantilla se organiza para separar reglas compartidas, agentes especializados
 - `global/.opencode/skills/`: skills reales de la plantilla: `brainstorming`, `graphify`, `systematic-debugging`, `verification-before-completion` y `writing-plans`.
 - `global/AGENTS.md`: define reglas globales de comportamiento, validación, seguridad, documentación y estilo de trabajo.
 - `global/opencode.json`: configuración global de OpenCode en formato V2: modelo, `default_agent`, permisos como array `permissions`, bloque `agents`, compactación, watcher, plugin `i-have-adhd` y servidor MCP de GitHub.
-- `global/cli.json`: preferencias del CLI/TUI (tema, sesión, diffs, notificaciones) que `install.sh` copia a `~/.config/opencode/cli.json`.
+- `global/cli.json`: preferencias del CLI/TUI (tema, sesión, diffs, notificaciones) que `install.sh` instala en `~/.config/opencode/cli.json` (o en `$XDG_CONFIG_HOME/opencode/cli.json` si defines `XDG_CONFIG_HOME`).
 - `project-template/`: ofrece la base que se copia dentro de un repositorio nuevo para definir su configuración local.
 - `project-template/.opencode/`: estructura local de OpenCode con carpetas para agents, commands y skills del proyecto.
 - `project-template/AGENTS.md`: extiende las reglas globales con instrucciones específicas del proyecto, stack o arquitectura cuando haga falta.
@@ -125,7 +125,7 @@ La plantilla está pensada para usarse en dos niveles: una capa global compartid
 Para obtener el comportamiento esperado de la plantilla, instala primero la capa global y después la capa local del proyecto. Así, las reglas compartidas sirven como base y las instrucciones del repositorio actúan como extensión especializada.
 
 ### Instalación rápida y dirigida (Recomendada)
-Si estás en Linux, puedes utilizar el script de instalación automatizado `install.sh` incluido en la raíz de este repositorio. Este script permite instalar el CLI de OpenCode, desplegar la configuración global y preparar la plantilla local en el proyecto seleccionado de forma guiada e interactiva (creando copias de seguridad de configuraciones previas de manera automática).
+Si estás en Linux, puedes utilizar el script de instalación automatizado `install.sh` incluido en la raíz de este repositorio. Este script permite instalar el CLI de OpenCode, desplegar la configuración global y preparar la plantilla local en el proyecto seleccionado de forma guiada e interactiva (creando copias de seguridad de configuraciones previas de manera automática). La configuración global se instala en `${XDG_CONFIG_HOME:-~/.config}/opencode`: si defines `XDG_CONFIG_HOME`, todo el flujo (instalación, doctor, restore/uninstall) lo respeta.
 
 1. Otorga permisos de ejecución al script:
    ```bash
@@ -135,14 +135,58 @@ Si estás en Linux, puedes utilizar el script de instalación automatizado `inst
    ```bash
    ./install.sh
    ```
-3. Selecciona la opción deseada del menú interactivo (por ejemplo, la opción **4** para realizar una instalación completa).
+3. Selecciona la opción deseada del menú interactivo (por ejemplo, la opción **6** para realizar una instalación completa). La opción **3** permite instalar solo componentes concretos y las opciones **7–9** cubren restauración y desinstalación.
 
 También puedes ejecutarlo de manera no interactiva usando flags:
 - `./install.sh --cli` (Solo instala/actualiza el CLI de OpenCode)
-- `./install.sh --global` (Solo copia la configuración global a `~/.config/opencode/`)
+- `./install.sh --global` (Solo instala la configuración global en `${XDG_CONFIG_HOME:-~/.config}/opencode`)
 - `./install.sh --project [ruta]` (Inicializa la plantilla local del proyecto en la ruta especificada)
 - `./install.sh --sync [ruta]` (Sincroniza plantillas actualizadas al proyecto, sobrescribe con backup)
 - `./install.sh --all` (Realiza la instalación completa y configura el proyecto en el directorio actual)
+- `./install.sh --global --only <lista>` (Instala solo componentes concretos; ver "Instalación por componentes" más abajo)
+- `./install.sh --global --no-mcp` (Omite el bloque `mcp.servers.github` del `opencode.json` instalado)
+- `./install.sh --restore [ts|latest]` y `./install.sh --uninstall` / `--project <ruta> --uninstall` (Restauración y desinstalación; ver [Restaurar y desinstalar](#restaurar-y-desinstalar))
+
+#### Instalación por componentes (`--only`)
+Con `--global` puedes instalar solo partes concretas mediante una lista separada por comas. Sin `--only` se instala todo (equivale a `all`):
+
+| Componente | Qué instala |
+| --- | --- |
+| `agents` | `global/.opencode/agents/` |
+| `commands` | `global/.opencode/commands/` |
+| `skills` | `global/.opencode/skills/` |
+| `agents-md` | `AGENTS.md` global |
+| `config` | `AGENTS.md` + `opencode.json` (merge no destructivo) |
+| `cli` | `cli.json` (merge no destructivo) |
+| `all` | Todo (comportamiento por defecto) |
+
+Ejemplo: `./install.sh --global --only skills,cli`. Usar `--only` sin `--global` o con un componente inválido termina con exit code `40`.
+
+#### Merge no destructivo al reinstalar `--global`
+Al reinstalar, la plantilla ya no pisa tu configuración existente:
+- `opencode.json`: la plantilla gana en claves compartidas, pero conserva tus claves exclusivas; `mcp` se fusiona por servidor (mantiene tu token real si ya lo configuraste) y `plugins` se deduplica.
+- `cli.json`: tus preferencias ganan; la plantilla solo añade claves ausentes.
+- Si tu JSON local está corrupto, el instalador aborta la escritura para no perderlo; con `--yes` sobrescribe plano con la plantilla.
+- El backup con timestamp (`<config>_backup_<ts>`) se crea siempre antes de escribir, así que hay punto de retorno.
+- El merge requiere `jq` o `python3`; sin ninguno, la copia es plana (con aviso).
+
+#### Token de GitHub MCP
+El token nunca se pasa por flag ni se imprime en los logs. Flujo correcto:
+
+1. Exporta la variable en tu entorno antes de ejecutar el instalador:
+   ```bash
+   export GITHUB_PERSONAL_ACCESS_TOKEN=<tu-token>
+   ```
+2. Ejecuta `./install.sh --global`: el token se inyecta en `mcp.servers.github.env`.
+3. Si el token queda como placeholder, el instalador avisa y `--doctor` lo detecta. Si no quieres el servidor MCP, instala con `--no-mcp`.
+
+En reinstalaciones, el merge conserva el token ya configurado; si exportas la variable otra vez, ese valor gana.
+
+#### Restaurar y desinstalar
+- `--restore [ts|latest]`: restaura un backup global `<config>_backup_<ts>` (por defecto el más reciente; lista los disponibles). Pide confirmación, es compatible con `--dry-run` y crea una copia `_pre_restore_<ts>` del estado actual antes de restaurar.
+- `--uninstall` (global): restaura el backup más reciente si existe; si no, elimina solo los archivos instalados por la plantilla (`AGENTS.md`, `opencode.json`, `cli.json`, `agents/`, `commands/`, `skills/`) sin tocar nunca archivos ajenos. En ambos casos elimina además el vendor `i-have-adhd` y su entrada en `plugins`.
+- `--project <ruta> --uninstall`: restaura el `.opencode_backup_<ts>` más reciente del proyecto.
+- Exit codes nuevos: `40` por mal uso de `--only` o por combinar `--restore` con `--uninstall`; `41` si el backup solicitado no existe.
 
 ---
 
@@ -282,7 +326,7 @@ En V2 la política de permisos se ajusta en `opencode.json` mediante el array `p
 `global/.opencode/skills/` incluye cinco skills: `brainstorming`, `graphify`, `systematic-debugging`, `verification-before-completion` y `writing-plans`. `graphify` genera un grafo de conocimiento del repositorio en `graphify-out/`; `global/AGENTS.md` indica consultarlo con `graphify query` antes de leer múltiples archivos, y el agente `explore` tiene permisos explícitos para esa skill y sus comandos. El `watcher.ignore` de la configuración global excluye `**/graphify-out/**`.
 
 ### Servidor MCP de GitHub
-`global/opencode.json` define `mcp.servers.github` como servidor local ejecutado con `npx -y @modelcontextprotocol/server-github`. El bloque `env` contiene solo un placeholder: para que funcione, el usuario debe proveer un token real mediante la variable de entorno `GITHUB_PERSONAL_ACCESS_TOKEN`.
+`global/opencode.json` define `mcp.servers.github` como servidor local ejecutado con `npx -y @modelcontextprotocol/server-github`. El bloque `env` contiene solo un placeholder: exporta `GITHUB_PERSONAL_ACCESS_TOKEN` antes de ejecutar `install.sh --global` para que el instalador inyecte tu token real (nunca por flag; ver [Token de GitHub MCP](#token-de-github-mcp)). Puedes omitir el bloque con `--no-mcp` y verificar el estado con `--doctor`.
 
 ### Preferencias del CLI (cli.json)
 `global/cli.json` guarda preferencias de interfaz del CLI/TUI (tema, diffs, sesión, animaciones, depuración). `install.sh` lo copia junto con `AGENTS.md` y `opencode.json` a `~/.config/opencode/` al instalar la capa global.
