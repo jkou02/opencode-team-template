@@ -645,6 +645,7 @@ install_global() {
 
   copy_file_if_exists "$GLOBAL_SOURCE/AGENTS.md" "$dest_dir/"
   copy_file_if_exists "$GLOBAL_SOURCE/opencode.json" "$dest_dir/"
+  copy_file_if_exists "$GLOBAL_SOURCE/cli.json" "$dest_dir/"
 
   # Copy contents of .opencode/ directly (agents/, commands/, skills/, etc.)
   # so they end up at the same level as AGENTS.md and opencode.json
@@ -731,7 +732,7 @@ sync_project() {
 # ------------------------------------------------------------------------------
 # Optional vendor skill: i-have-adhd
 # ------------------------------------------------------------------------------
-# Registra una entrada en el array "plugin" de un opencode.json de forma
+# Registra una entrada en el array "plugins" de un opencode.json de forma
 # idempotente. Usa jq si está disponible; si no, python3. Devuelve 0 si se
 # editó el archivo y 1 si no se pudo (falta jq y python3).
 register_plugin_entry() {
@@ -742,7 +743,7 @@ register_plugin_entry() {
     local tmp_file
     tmp_file="$(mktemp)"
     if jq --arg p "$plugin_entry" \
-      '.plugin = ((.plugin // []) | if index($p) then . else . + [$p] end)' \
+      '.plugins = ((.plugins // []) | if index($p) then . else . + [$p] end)' \
       "$config_file" > "$tmp_file" 2>/dev/null; then
       cp "$tmp_file" "$config_file" || { rm -f "$tmp_file"; return 1; }
       rm -f "$tmp_file"
@@ -757,10 +758,10 @@ import json, sys
 path, entry = sys.argv[1], sys.argv[2]
 with open(path, encoding="utf-8") as f:
     data = json.load(f)
-plugins = data.get("plugin") or []
+plugins = data.get("plugins") or []
 if entry not in plugins:
     plugins.append(entry)
-data["plugin"] = plugins
+data["plugins"] = plugins
 with open(path, "w", encoding="utf-8") as f:
     json.dump(data, f, indent=2, ensure_ascii=False)
     f.write("\n")
@@ -823,11 +824,11 @@ install_i_have_adhd() {
       emit_ok "Plugin registrado en '$config_file'." "vendor"
     else
       emit_warn "No se pudo editar '$config_file' automáticamente (falta jq/python3)." "vendor"
-      emit_warn "Añade manualmente: \"plugin\": [\"$plugin_rel\"]" "vendor"
+      emit_warn "Añade manualmente: \"plugins\": [\"$plugin_rel\"]" "vendor"
     fi
   else
     emit_warn "No se encontró '$config_file'. Tras instalar la plantilla global, añade:" "vendor"
-    emit_warn "  \"plugin\": [\"$plugin_rel\"]" "vendor"
+    emit_warn "  \"plugins\": [\"$plugin_rel\"]" "vendor"
   fi
 
   emit_ok "Skill/plugin i-have-adhd listo. Reinicia OpenCode y usa /i-have-adhd." "vendor"
